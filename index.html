@@ -1803,9 +1803,10 @@
               sdpSemantics: 'unified-plan',
               iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun.cloudflare.com:3478' },
                 { urls: 'stun:stun1.l.google.com:19302' },
-                { urls: 'stun:stun2.l.google.com:19302' }
+                { urls: 'stun:stun2.l.google.com:19302' },
+                { urls: 'stun:stun.cloudflare.com:3478' },
+                { urls: 'stun:global.stun.twilio.com:3478' }
               ]
             }
           });
@@ -1907,8 +1908,15 @@
         c.peerConnection.oniceconnectionstatechange = () => {
           const s = c.peerConnection.iceConnectionState;
           console.log('[Sender ICE state]:', s);
-          if (s === 'connected' || s === 'completed') {
+          if (s === 'checking') {
+            document.getElementById('transfer-eta').textContent = 'Connecting P2P...';
+          } else if (s === 'connected' || s === 'completed') {
+            document.getElementById('transfer-eta').textContent = 'P2P Route Ready';
             showToast('P2P connection established!');
+          } else if (s === 'disconnected' || s === 'failed') {
+            if (!hasStartedSending) {
+              document.getElementById('transfer-eta').textContent = 'Waiting for receiver...';
+            }
           }
         };
       }
@@ -1979,6 +1987,13 @@
         }
         stopHeartbeat();
         releaseWakeLock();
+        if (!hasStartedSending) {
+          if (islandState === 'stream') {
+            setIslandState('qr');
+          }
+          document.getElementById('transfer-name').textContent = 'Waiting for receiver...';
+          document.getElementById('transfer-eta').textContent = 'Scan QR code or keep page open';
+        }
       });
 
       c.on('error', err => {
@@ -2443,15 +2458,15 @@
       stopHeartbeat();
       releaseWakeLock();
 
-      // If this is the first failure, automatically retry once
-      if (receiverRetryCount < 1) {
+      // Automatically retry twice before requiring manual tap
+      if (receiverRetryCount < 2) {
         receiverRetryCount++;
-        showToast('Pairing interrupted. Re-connecting...');
+        showToast(`Pairing paused (${receiverRetryCount}/2). Re-connecting...`);
         setTimeout(() => {
           if (islandState === 'stream' && !incomingFileMeta && !fileReceiveCompleted) {
             connectDirectlyToSender(targetPeerId, true);
           }
-        }, 1000);
+        }, 1200);
         return;
       }
 
@@ -2502,7 +2517,7 @@
         peerInitPromise = null;
 
         await initMyPeer();
-        const c = peer.connect(targetPeerId);
+        const c = peer.connect(targetPeerId, { reliable: true });
         setupReceiverConnection(c, targetPeerId);
 
         function monitorIce(pc) {
@@ -2529,14 +2544,14 @@
           setTimeout(() => clearInterval(checkInterval), 3000);
         }
 
-        // 12-second pairing watchdog: if c doesn't open within 12s, trigger retry
+        // 25-second pairing watchdog: allow full STUN handshake on mobile networks
         receiverWatchdogTimer = setTimeout(() => {
           if (!c.open && !incomingFileMeta && !fileReceiveCompleted) {
-            console.warn('Pairing watchdog fired after 12s');
+            console.warn('Pairing watchdog fired after 25s');
             try { c.close(); } catch(_) {}
             handleReceiverError(targetPeerId, new Error('Pairing timed out'));
           }
-        }, 12000);
+        }, 25000);
       } catch (err) {
         handleReceiverError(targetPeerId, err);
       }
