@@ -6,7 +6,7 @@ Think of AirDrop, but without needing Apple hardware, Bluetooth, or downloading 
 
 ## 🚀 How to Use It
 
-Important: AirGrove connects directly over your local network. Both devices should be connected to the same Wi-Fi router (not cellular data) for direct peer-to-peer transfer.
+Important: AirGrove connects directly over your local network. Both devices should be connected to the same Wi-Fi router (not cellular data). For the smoothest experience, use **Safari** or **Chrome** (privacy shields in browsers like Brave can block local peer-to-peer WebRTC connections).
 
 ### Sending a File
 1. Open AirGrove in your browser on your computer or phone.

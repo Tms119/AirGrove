@@ -340,11 +340,18 @@
       font-size: 0.78rem;
       color: var(--text-secondary);
     }
+    .tag-row {
+      display: flex;
+      gap: 6px;
+      justify-content: center;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
     .local-wifi-tag {
       display: inline-flex;
       align-items: center;
       gap: 5px;
-      margin-top: 6px;
       font-size: 0.72rem;
       font-weight: 500;
       color: rgba(52, 211, 153, 0.95);
@@ -352,6 +359,23 @@
       border: 1px solid rgba(16, 185, 129, 0.2);
       padding: 3px 10px;
       border-radius: 9999px;
+    }
+    .browser-hint-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.72rem;
+      font-weight: 500;
+      color: rgba(244, 114, 182, 0.95);
+      background: rgba(236, 72, 153, 0.08);
+      border: 1px solid rgba(236, 72, 153, 0.22);
+      padding: 3px 10px;
+      border-radius: 9999px;
+      transition: all 0.2s ease;
+    }
+    .browser-hint-tag:hover {
+      background: rgba(236, 72, 153, 0.15);
+      border-color: rgba(236, 72, 153, 0.35);
     }
 
     .quick-clip-row {
@@ -1212,7 +1236,10 @@
             <div class="drop-icon">📁</div>
             <div class="drop-headline">Drop files or photos here</div>
             <div class="drop-sub">or click to browse · paste with ⌘V</div>
-            <div class="local-wifi-tag"><span>📶</span> Same Wi-Fi transfer · Direct P2P</div>
+            <div class="tag-row">
+              <div class="local-wifi-tag"><span>📶</span> Same Wi-Fi · Direct P2P</div>
+              <div class="browser-hint-tag"><span>✨</span> Safari &amp; Chrome vibe best (Brave shields block P2P)</div>
+            </div>
           </div>
 
           <!-- Quick Text / Clipboard Box -->
@@ -1233,7 +1260,7 @@
           <div class="qr-island-title">
             <span>📷</span> Scan with your phone camera
           </div>
-          <div class="qr-island-hint" id="qr-hint-text">Scan with camera · Connect both devices to same Wi-Fi</div>
+          <div class="qr-island-hint" id="qr-hint-text">Scan with camera · Same Wi-Fi · Safari &amp; Chrome vibe best ✨</div>
           <div class="island-btn-row">
             <button class="island-btn" id="btn-copy" onclick="copyShareLink()">Copy link</button>
             <button class="island-btn btn-ghost" onclick="setIslandState('idle')">✕</button>
@@ -1350,6 +1377,10 @@
             <div class="error-checklist-item">
               <span class="error-checklist-num">2</span>
               <div><strong>Connect to Same Wi-Fi:</strong> Both devices must be on the same local Wi-Fi router.</div>
+            </div>
+            <div class="error-checklist-item">
+              <span class="error-checklist-num">3</span>
+              <div><strong>Browser Vibe Check:</strong> Use Safari or Chrome. Brave Shields block direct local peer connections.</div>
             </div>
           </div>
 
@@ -1778,7 +1809,7 @@
       if (reason === 'different_network' || reason === 'firewall') {
         if (titleEl) titleEl.textContent = customTitle || 'Pairing Failed';
         if (badgeEl) badgeEl.textContent = 'Different Network or Firewall';
-        if (descEl) descEl.textContent = customDesc || 'Direct peer-to-peer connection was blocked by a network firewall. Both devices must be on the exact same Wi-Fi network.';
+        if (descEl) descEl.textContent = customDesc || 'Direct peer-to-peer connection was blocked. Both devices must be on the same Wi-Fi. Pro-tip: Safari & Chrome vibe best (Brave shields block P2P).';
         if (actionBtn) actionBtn.textContent = '🔄 Retry on Same Wi-Fi';
         showToast('Pairing failed: Devices on different networks or blocked by firewall');
       } else {
@@ -2819,17 +2850,17 @@
                 }
               }, 4000);
 
-              // If stuck in checking for 10s, fail fast and explain why
+              // If stuck in checking for 15s, fail fast and explain why
               if (recvIceStuckTimeout) clearTimeout(recvIceStuckTimeout);
               recvIceStuckTimeout = setTimeout(() => {
                 if (pc.iceConnectionState === 'checking' && !incomingFileMeta && !fileReceiveCompleted) {
                   showPairingError(
                     'different_network',
                     'Pairing Failed',
-                    'Connection stuck connecting P2P. Devices appear to be on different networks or blocked by a firewall. Switch off cellular data and join the same Wi-Fi.'
+                    'Connection stuck connecting P2P. Devices appear to be on different networks or blocked by a firewall. Switch off cellular data, join same Wi-Fi, and use Safari or Chrome.'
                   );
                 }
-              }, 10000);
+              }, 15000);
             } else if (s === 'connected' || s === 'completed') {
               if (recvIceCheckTimeout) clearTimeout(recvIceCheckTimeout);
               if (recvIceStuckTimeout) clearTimeout(recvIceStuckTimeout);
@@ -2840,7 +2871,7 @@
               showPairingError(
                 'firewall',
                 'Firewall Blocked P2P',
-                'Network firewall or mobile carrier blocked direct peer connection. Both devices must be on the same local Wi-Fi router.'
+                'Direct peer connection blocked. Both devices must be on the same Wi-Fi router, and use Safari or Chrome (Brave shields block local P2P).'
               );
             }
           };
