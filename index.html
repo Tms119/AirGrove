@@ -1573,6 +1573,10 @@
         try { URL.revokeObjectURL(currentBlobUrl); } catch(_) {}
         currentBlobUrl = null;
       }
+      if (conn && !conn.open) {
+        try { conn.close(); } catch(_) {}
+        conn = null;
+      }
       setIslandState('idle');
       showToast('Ready for another file or note');
     }
@@ -1701,8 +1705,8 @@
 
     async function startSharing() {
       if (conn && conn.open && pendingItem) {
-        hasStartedSending = true;
         if (pendingItem.type === 'clip') {
+          hasStartedSending = true;
           playChime('connect');
           setIslandState('stream');
           conn.send(JSON.stringify({ k: 'clip', text: pendingItem.text }));
@@ -1712,16 +1716,36 @@
             }
           }, 600);
         } else {
+          hasStartedSending = false;
           playChime('connect');
           setIslandState('stream');
+          AuraOrbit.init();
+          AuraOrbit.setProgress(0);
+          document.getElementById('transfer-name').textContent = pendingItem.name;
+          document.getElementById('activity-icon').textContent = getFileIcon(pendingItem.name, pendingItem.mime);
+          document.getElementById('transfer-pct').textContent = '0%';
+          document.getElementById('transfer-speed').textContent = '';
+          document.getElementById('transfer-eta').textContent = 'Sending...';
+
           const totalChunks = Math.max(1, Math.ceil(pendingItem.size / CHUNK));
-          conn.send(JSON.stringify({
-            k: 'meta',
-            name: pendingItem.name,
-            size: pendingItem.size,
-            type: pendingItem.mime || (pendingItem.file && pendingItem.file.type) || 'application/octet-stream',
-            chunks: totalChunks
-          }));
+          try {
+            conn.send(JSON.stringify({
+              k: 'meta',
+              name: pendingItem.name,
+              size: pendingItem.size,
+              type: pendingItem.mime || (pendingItem.file && pendingItem.file.type) || 'application/octet-stream',
+              chunks: totalChunks
+            }));
+          } catch(e) {}
+
+          // Fallback: If receiver doesn't ack_meta within 800ms, start streaming anyway
+          setTimeout(() => {
+            if (pendingItem && pendingItem.file && !hasStartedSending && conn && conn.open) {
+              console.log('Direct stream fallback triggering');
+              hasStartedSending = true;
+              streamTurboItem(pendingItem);
+            }
+          }, 800);
         }
         return;
       }
@@ -1809,6 +1833,9 @@
             showToast('Receiver detected! Connecting...');
             document.getElementById('transfer-name').textContent = 'Connecting...';
             document.getElementById('transfer-eta').textContent = 'Pairing with device...';
+            if (conn && conn !== c) {
+              try { conn.close(); } catch(_) {}
+            }
             setupConnection(c);
           });
 
@@ -1822,6 +1849,11 @@
               myId = null;
               peer = null;
               initMyPeer();
+            } else if (err.type === 'peer-unavailable') {
+              if (receiverWatchdogTimer) { clearTimeout(receiverWatchdogTimer); receiverWatchdogTimer = null; }
+              document.getElementById('transfer-name').textContent = 'Sender offline';
+              document.getElementById('transfer-eta').textContent = 'Please scan active QR code';
+              showToast('Sender offline. Please scan active QR code');
             } else if (islandState === 'stream' && !incomingFileMeta && !fileReceiveCompleted && currentReceiverTargetId) {
               handleReceiverError(currentReceiverTargetId, err);
             }
@@ -1900,6 +1932,14 @@
           } else {
             playChime('connect');
             setIslandState('stream');
+            AuraOrbit.init();
+            AuraOrbit.setProgress(0);
+            document.getElementById('transfer-name').textContent = pendingItem.name;
+            document.getElementById('activity-icon').textContent = getFileIcon(pendingItem.name, pendingItem.mime);
+            document.getElementById('transfer-pct').textContent = '0%';
+            document.getElementById('transfer-speed').textContent = '';
+            document.getElementById('transfer-eta').textContent = 'Sending...';
+
             const totalChunks = Math.max(1, Math.ceil(pendingItem.size / CHUNK));
             try {
               conn.send(JSON.stringify({
@@ -1910,7 +1950,19 @@
                 chunks: totalChunks
               }));
             } catch(_) {}
+
+            setTimeout(() => {
+              if (pendingItem && pendingItem.file && !hasStartedSending && conn && conn.open) {
+                console.log('Open stream fallback triggering');
+                hasStartedSending = true;
+                streamTurboItem(pendingItem);
+              }
+            }, 800);
           }
+        } else if (!pendingItem) {
+          document.getElementById('transfer-name').textContent = 'Device paired';
+          document.getElementById('transfer-eta').textContent = 'Ready to send file';
+          showToast('Device paired! Pick a file to send');
         }
       };
 
@@ -1919,6 +1971,15 @@
       } else {
         c.on('open', onOpen);
       }
+
+      c.on('close', () => {
+        console.log('Sender connection closed');
+        if (conn === c) {
+          conn = null;
+        }
+        stopHeartbeat();
+        releaseWakeLock();
+      });
 
       c.on('error', err => {
         console.warn('Sender connection error:', err);
@@ -1953,6 +2014,12 @@
                     type: pendingItem.mime || (pendingItem.file && pendingItem.file.type) || 'application/octet-stream',
                     chunks: totalChunks
                   }));
+                  setTimeout(() => {
+                    if (pendingItem && pendingItem.file && !hasStartedSending && conn && conn.open) {
+                      hasStartedSending = true;
+                      streamTurboItem(pendingItem);
+                    }
+                  }, 800);
                 }
               }
               return;
@@ -2427,21 +2494,21 @@
           try { conn.close(); } catch(_) {}
           conn = null;
         }
-        if (!peer || peer.destroyed || peer.disconnected) {
-          if (peer && !peer.destroyed) {
-            try { peer.destroy(); } catch(_) {}
-          }
-          peer = null;
-          myId = null;
-          peerInitPromise = null;
+        if (peer && !peer.destroyed) {
+          try { peer.destroy(); } catch(_) {}
         }
+        peer = null;
+        myId = null;
+        peerInitPromise = null;
+
         await initMyPeer();
         const c = peer.connect(targetPeerId);
         setupReceiverConnection(c, targetPeerId);
 
-        if (c.peerConnection) {
-          c.peerConnection.oniceconnectionstatechange = () => {
-            const s = c.peerConnection.iceConnectionState;
+        function monitorIce(pc) {
+          if (!pc) return;
+          pc.oniceconnectionstatechange = () => {
+            const s = pc.iceConnectionState;
             console.log('[Receiver ICE state]:', s);
             if (s === 'checking') {
               document.getElementById('transfer-eta').textContent = 'Connecting P2P...';
@@ -2450,15 +2517,26 @@
             }
           };
         }
+        if (c.peerConnection) {
+          monitorIce(c.peerConnection);
+        } else {
+          const checkInterval = setInterval(() => {
+            if (c.peerConnection) {
+              clearInterval(checkInterval);
+              monitorIce(c.peerConnection);
+            }
+          }, 50);
+          setTimeout(() => clearInterval(checkInterval), 3000);
+        }
 
-        // 15-second pairing watchdog: if c doesn't open within 15s, trigger retry
+        // 12-second pairing watchdog: if c doesn't open within 12s, trigger retry
         receiverWatchdogTimer = setTimeout(() => {
           if (!c.open && !incomingFileMeta && !fileReceiveCompleted) {
-            console.warn('Pairing watchdog fired after 15s');
+            console.warn('Pairing watchdog fired after 12s');
             try { c.close(); } catch(_) {}
             handleReceiverError(targetPeerId, new Error('Pairing timed out'));
           }
-        }, 15000);
+        }, 12000);
       } catch (err) {
         handleReceiverError(targetPeerId, err);
       }
@@ -2573,6 +2651,9 @@
         if (receiverReadyInterval) { clearInterval(receiverReadyInterval); receiverReadyInterval = null; }
         stopHeartbeat();
         releaseWakeLock();
+        if (conn === c) {
+          conn = null;
+        }
         if (islandState === 'stream' && !fileReceiveCompleted) showToast('Connection closed');
       });
     }
@@ -2585,6 +2666,16 @@
       incomingTotalBytes = 0;
       transferStartTime = Date.now();
       lastRecvUiUpdate = Date.now();
+      receivedBlob = null;
+      if (currentBlobUrl) {
+        try { URL.revokeObjectURL(currentBlobUrl); } catch(e) {}
+        currentBlobUrl = null;
+      }
+
+      // Ensure island is in stream mode
+      setIslandState('stream');
+      AuraOrbit.init();
+      AuraOrbit.setProgress(0);
 
       // Bind file info immediately to the UI
       document.getElementById('transfer-name').textContent = meta.name;
