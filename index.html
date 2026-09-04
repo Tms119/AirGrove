@@ -978,6 +978,26 @@
       color: #58d68d;
       text-decoration: underline;
     }
+    .footer-stats-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      background: rgba(46, 204, 113, 0.12);
+      border: 1px solid rgba(46, 204, 113, 0.3);
+      color: #2ecc71 !important;
+      font-size: 0.72rem;
+      font-weight: 600;
+      text-decoration: none !important;
+      transition: all 0.2s ease;
+      margin-left: 6px;
+    }
+    .footer-stats-badge:hover {
+      background: rgba(46, 204, 113, 0.25);
+      border-color: #2ecc71;
+      transform: translateY(-1px);
+    }
     .sound-toggle-btn {
       width: 32px;
       height: 32px;
@@ -1205,6 +1225,7 @@
     <div class="footer-credit">
       <span>Made by Mohammad Sayem</span>
       <span>Contact me: <a href="mailto:sayem@peerbros.com">sayem@peerbros.com</a></span>
+      <a href="/api/stats?view=html" target="_blank" class="footer-stats-badge" title="View live transfers and logs on Vercel">📊 Live Stats</a>
     </div>
     <button class="sound-toggle-btn" id="btn-sound" onclick="toggleAudio()" title="Toggle Sound">
       🔊
@@ -1242,6 +1263,40 @@
     let fileReceiveCompleted = false;
     let lastReceivedType = 'file';
     let lastReceivedText = '';
+
+    /* ═══════════════════════════════════════════════════════════════════
+       REAL-TIME TELEMETRY (LOGS DIRECTLY TO VERCEL DASHBOARD)
+       ═══════════════════════════════════════════════════════════════════ */
+    let pairingStartTime = 0;
+    let localIceCandidates = { host: 0, srflx: 0, relay: 0 };
+
+    function sendTelemetry(event, data = {}) {
+      try {
+        const payload = JSON.stringify({
+          event,
+          data: {
+            ...data,
+            peerId: myId || 'unknown',
+            isReceiver: isReceiverMode,
+            screen: `${window.innerWidth}x${window.innerHeight}`,
+            online: navigator.onLine,
+            effectiveType: (navigator.connection && navigator.connection.effectiveType) ? navigator.connection.effectiveType : 'unknown'
+          }
+        });
+
+        if (navigator.sendBeacon) {
+          const blob = new Blob([payload], { type: 'application/json' });
+          navigator.sendBeacon('/api/telemetry', blob);
+        } else {
+          fetch('/api/telemetry', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: payload,
+            keepalive: true
+          }).catch(() => {});
+        }
+      } catch(_) {}
+    }
 
     /* ═══════════════════════════════════════════════════════════════════
        AURA ORBIT CANVAS ENGINE
@@ -1607,6 +1662,8 @@
       const params = new URLSearchParams(window.location.search);
       const targetPeerId = params.get('r');
 
+      sendTelemetry('PAGE_VIEW', { role: targetPeerId ? 'receiver' : 'sender', targetPeerId });
+
       if (targetPeerId) {
         isReceiverMode = true;
         connectDirectlyToSender(targetPeerId);
@@ -1820,6 +1877,7 @@
             clearTimeout(timeout);
             myId = id;
             peerInitPromise = null;
+            sendTelemetry('PEER_ONLINE', { peerId: id, role: isReceiverMode ? 'receiver' : 'sender' });
             resolve(peer);
           });
 
@@ -1831,6 +1889,7 @@
           });
 
           peer.on('connection', c => {
+            sendTelemetry('RECEIVER_DETECTED', { remotePeerId: c.peer });
             showToast('Receiver detected! Connecting...');
             document.getElementById('transfer-name').textContent = 'Connecting...';
             document.getElementById('transfer-eta').textContent = 'Pairing with device...';
@@ -1908,6 +1967,7 @@
         c.peerConnection.oniceconnectionstatechange = () => {
           const s = c.peerConnection.iceConnectionState;
           console.log('[Sender ICE state]:', s);
+          sendTelemetry('ICE_STATE_CHANGE', { role: 'sender', state: s });
           if (s === 'checking') {
             document.getElementById('transfer-eta').textContent = 'Connecting P2P...';
           } else if (s === 'connected' || s === 'completed') {
@@ -1922,6 +1982,7 @@
       }
 
       const onOpen = () => {
+        sendTelemetry('PAIRING_SUCCESS', { role: 'sender' });
         if (c.dataChannel) {
           try { c.dataChannel.binaryType = 'arraybuffer'; } catch(e) {}
         }
@@ -2234,6 +2295,7 @@
       setIslandState('stream');
       transferStartTime = Date.now();
       senderWaitingForReceiver = true;
+      sendTelemetry('TRANSFER_START', { name: item.name, bytes: item.size || 0, type: item.mime || item.type || item.type });
 
       AuraOrbit.init();
       AuraOrbit.setProgress(0);
@@ -2376,6 +2438,10 @@
       AuraOrbit.stop();
       playChime('success');
 
+      const durSec = ((Date.now() - transferStartTime) / 1000).toFixed(1);
+      const speed = (item && item.size) ? (item.size / (1024 * 1024 * Math.max(0.1, durSec))).toFixed(1) : '0';
+      sendTelemetry('TRANSFER_COMPLETE', { role: 'sender', name: item ? item.name : 'clip', bytes: item ? item.size : 0, durationSec: durSec, speedMBs: speed });
+
       const fileCard = document.getElementById('complete-file-card');
       const clipCard = document.getElementById('complete-clip-card');
 
@@ -2458,6 +2524,16 @@
       stopHeartbeat();
       releaseWakeLock();
 
+      const elapsed = pairingStartTime ? Date.now() - pairingStartTime : 0;
+      sendTelemetry('PAIRING_TIMEOUT', {
+        targetPeerId,
+        error: err ? err.message : 'Pairing timed out',
+        elapsedMs: elapsed,
+        retryCount: receiverRetryCount,
+        iceState: (conn && conn.peerConnection) ? conn.peerConnection.iceConnectionState : 'unknown',
+        candidates: localIceCandidates
+      });
+
       // Automatically retry twice before requiring manual tap
       if (receiverRetryCount < 2) {
         receiverRetryCount++;
@@ -2493,6 +2569,9 @@
 
     async function connectDirectlyToSender(targetPeerId, isRetry = false) {
       currentReceiverTargetId = targetPeerId;
+      pairingStartTime = Date.now();
+      localIceCandidates = { host: 0, srflx: 0, relay: 0 };
+      sendTelemetry('PAIRING_ATTEMPT', { targetPeerId, isRetry, retryCount: receiverRetryCount });
       if (!isRetry) receiverRetryCount = 0;
       if (receiverWatchdogTimer) { clearTimeout(receiverWatchdogTimer); receiverWatchdogTimer = null; }
       acquireWakeLock();
@@ -2522,9 +2601,20 @@
 
         function monitorIce(pc) {
           if (!pc) return;
+          try {
+            const origCandidate = pc.onicecandidate;
+            pc.onicecandidate = (e) => {
+              if (e.candidate && e.candidate.type) {
+                localIceCandidates[e.candidate.type] = (localIceCandidates[e.candidate.type] || 0) + 1;
+              }
+              if (typeof origCandidate === 'function') origCandidate(e);
+            };
+          } catch(_) {}
+
           pc.oniceconnectionstatechange = () => {
             const s = pc.iceConnectionState;
             console.log('[Receiver ICE state]:', s);
+            sendTelemetry('ICE_STATE_CHANGE', { role: 'receiver', state: s, elapsedMs: Date.now() - pairingStartTime });
             if (s === 'checking') {
               document.getElementById('transfer-eta').textContent = 'Connecting P2P...';
             } else if (s === 'connected' || s === 'completed') {
@@ -2572,6 +2662,7 @@
       if (receiverReadyInterval) clearInterval(receiverReadyInterval);
 
       const onOpen = () => {
+        sendTelemetry('PAIRING_SUCCESS', { role: 'receiver', elapsedMs: Date.now() - pairingStartTime });
         if (receiverWatchdogTimer) { clearTimeout(receiverWatchdogTimer); receiverWatchdogTimer = null; }
         if (c.dataChannel) {
           try { c.dataChannel.binaryType = 'arraybuffer'; } catch(e) {}
@@ -2909,6 +3000,10 @@
         setIslandState('complete');
         fileReceiveCompleted = true;
         showToast(`Dropped ${filename}! Ready to save.`);
+
+        const durSec = ((Date.now() - transferStartTime) / 1000).toFixed(1);
+        const speed = (totalSize / (1024 * 1024 * Math.max(0.1, durSec))).toFixed(1);
+        sendTelemetry('TRANSFER_COMPLETE', { role: 'receiver', name: receivedFileName, bytes: totalSize, durationSec: durSec, speedMBs: speed });
 
         // Non-critical decorative items
         try { playChime('success'); } catch(_) {}
