@@ -6,6 +6,8 @@ Think of AirDrop, but without needing Apple hardware, Bluetooth, or downloading 
 
 ## 🚀 How to Use It
 
+Important: Like Snapdrop and AirDrop, AirGrove connects directly over your local network. Both devices should be connected to the same Wi-Fi router (not cellular data) for direct peer-to-peer transfer.
+
 ### Sending a File
 1. Open AirGrove in your browser on your computer or phone.
 2. Drop any file onto the window, click the upload box to browse, or paste an image directly from your clipboard.

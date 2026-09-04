@@ -211,6 +211,15 @@
       padding: 22px 24px 18px;
     }
 
+    .dynamic-island.state-error {
+      width: 380px;
+      height: 380px;
+      border-radius: 40px;
+      padding: 22px 24px;
+      border-color: rgba(239, 68, 68, 0.45);
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.9), 0 0 45px rgba(239, 68, 68, 0.25);
+    }
+
     @media (max-width: 420px) {
       .dynamic-island.state-qr {
         width: 92vw;
@@ -224,6 +233,11 @@
         width: 92vw;
         height: 350px;
         padding: 20px 18px 16px;
+      }
+      .dynamic-island.state-error {
+        width: 92vw;
+        height: 400px;
+        padding: 20px 18px;
       }
     }
 
@@ -325,6 +339,19 @@
     .drop-sub {
       font-size: 0.78rem;
       color: var(--text-secondary);
+    }
+    .local-wifi-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      margin-top: 6px;
+      font-size: 0.72rem;
+      font-weight: 500;
+      color: rgba(52, 211, 153, 0.95);
+      background: rgba(16, 185, 129, 0.08);
+      border: 1px solid rgba(16, 185, 129, 0.2);
+      padding: 3px 10px;
+      border-radius: 9999px;
     }
 
     .quick-clip-row {
@@ -1034,6 +1061,112 @@
       }
     }
 
+    /* ─── 6. ERROR / FIREWALL VIEW STYLES ─── */
+    .error-card-wrap {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      animation: fadeInError 0.3s ease;
+    }
+    @keyframes fadeInError {
+      from { opacity: 0; transform: scale(0.95); }
+      to { opacity: 1; transform: scale(1); }
+    }
+    .error-icon-badge {
+      font-size: 38px;
+      margin-bottom: 6px;
+      filter: drop-shadow(0 0 16px rgba(239, 68, 68, 0.5));
+    }
+    .error-main-title {
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: #ffffff;
+      margin-bottom: 4px;
+    }
+    .error-pill-reason {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #f87171;
+      background: rgba(239, 68, 68, 0.12);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      padding: 3px 10px;
+      border-radius: 9999px;
+      margin-bottom: 12px;
+    }
+    .error-desc-text {
+      font-size: 0.82rem;
+      line-height: 1.45;
+      color: #cbd5e1;
+      margin-bottom: 14px;
+      max-width: 320px;
+    }
+    .error-checklist {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      padding: 10px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      text-align: left;
+      margin-bottom: 16px;
+    }
+    .error-checklist-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      font-size: 0.76rem;
+      color: #94a3b8;
+      line-height: 1.35;
+    }
+    .error-checklist-item strong {
+      color: #f1f5f9;
+    }
+    .error-checklist-num {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.12);
+      color: #ffffff;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.65rem;
+      font-weight: 700;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .btn-error-retry {
+      width: 100%;
+      padding: 12px;
+      border-radius: var(--radius-pill);
+      border: none;
+      background: #ffffff;
+      color: #000000;
+      font-weight: 700;
+      font-size: 0.88rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+    .btn-error-retry:hover {
+      background: #f1f5f9;
+      transform: scale(1.02);
+    }
+
     /* Island Toast */
     .island-toast {
       position: fixed;
@@ -1099,6 +1232,7 @@
             <div class="drop-icon">📁</div>
             <div class="drop-headline">Drop files or photos here</div>
             <div class="drop-sub">or click to browse · paste with ⌘V</div>
+            <div class="local-wifi-tag"><span>📶</span> Same Wi-Fi transfer · Like Snapdrop</div>
           </div>
 
           <!-- Quick Text / Clipboard Box -->
@@ -1119,7 +1253,7 @@
           <div class="qr-island-title">
             <span>📷</span> Scan with your phone camera
           </div>
-          <div class="qr-island-hint" id="qr-hint-text">Scan with camera to connect</div>
+          <div class="qr-island-hint" id="qr-hint-text">Scan with camera · Connect both devices to same Wi-Fi</div>
           <div class="island-btn-row">
             <button class="island-btn" id="btn-copy" onclick="copyShareLink()">Copy link</button>
             <button class="island-btn btn-ghost" onclick="setIslandState('idle')">✕</button>
@@ -1214,6 +1348,39 @@
             </div>
           </div>
 
+        </div>
+      </div>
+
+      <!-- 6. ERROR / FIREWALL VIEW -->
+      <div class="island-view" id="view-error">
+        <div class="error-card-wrap">
+          <div class="error-icon-badge">⚠️</div>
+          <div class="error-main-title" id="error-title">Pairing Failed</div>
+          <div class="error-pill-reason" id="error-badge">Different Network or Firewall</div>
+
+          <p class="error-desc-text" id="error-desc">
+            Direct peer-to-peer connection was blocked. AirGrove transfers directly over your local Wi-Fi with zero cloud servers.
+          </p>
+
+          <div class="error-checklist">
+            <div class="error-checklist-item">
+              <span class="error-checklist-num">1</span>
+              <div><strong>Turn off Cellular Data:</strong> Make sure your phone is not using 5G/4G.</div>
+            </div>
+            <div class="error-checklist-item">
+              <span class="error-checklist-num">2</span>
+              <div><strong>Connect to Same Wi-Fi:</strong> Both devices must be on the same local Wi-Fi router.</div>
+            </div>
+          </div>
+
+          <div class="island-btn-row">
+            <button class="btn-error-retry" id="btn-error-action" onclick="retryFromError()">
+              🔄 Try Again
+            </button>
+            <button class="island-btn btn-ghost" onclick="setIslandState('idle')">
+              ✕
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1598,6 +1765,9 @@
       } else if (state === 'complete') {
         island.classList.add('state-complete');
         AuraOrbit.stop(); // Stop RAF when leaving stream
+      } else if (state === 'error') {
+        island.classList.add('state-error');
+        AuraOrbit.stop();
       } else {
         AuraOrbit.stop();
       }
@@ -1608,10 +1778,57 @@
         idle: 'view-idle',
         qr: 'view-qr',
         stream: 'view-stream',
-        complete: 'view-complete'
+        complete: 'view-complete',
+        error: 'view-error'
       };
       const targetView = document.getElementById(viewMap[state]);
       if (targetView) targetView.classList.add('active');
+    }
+
+    function showPairingError(reason = 'different_network', customTitle, customDesc) {
+      if (receiverWatchdogTimer) { clearTimeout(receiverWatchdogTimer); receiverWatchdogTimer = null; }
+      if (receiverReadyInterval) { clearInterval(receiverReadyInterval); receiverReadyInterval = null; }
+      stopHeartbeat();
+      releaseWakeLock();
+
+      const titleEl = document.getElementById('error-title');
+      const badgeEl = document.getElementById('error-badge');
+      const descEl = document.getElementById('error-desc');
+      const actionBtn = document.getElementById('btn-error-action');
+
+      if (reason === 'different_network' || reason === 'firewall') {
+        if (titleEl) titleEl.textContent = customTitle || 'Pairing Failed';
+        if (badgeEl) badgeEl.textContent = 'Different Network or Firewall';
+        if (descEl) descEl.textContent = customDesc || 'Direct peer-to-peer connection was blocked by a network firewall. Both devices must be on the exact same Wi-Fi network.';
+        if (actionBtn) actionBtn.textContent = '🔄 Retry on Same Wi-Fi';
+        showToast('Pairing failed: Devices on different networks or blocked by firewall');
+      } else {
+        if (titleEl) titleEl.textContent = customTitle || 'Connection Interrupted';
+        if (badgeEl) badgeEl.textContent = 'Connection Timeout';
+        if (descEl) descEl.textContent = customDesc || 'Could not reach the device. Check that both devices are awake and on the same Wi-Fi.';
+        if (actionBtn) actionBtn.textContent = '🔄 Try Again';
+        showToast('Connection failed. Tap to retry');
+      }
+
+      setIslandState('error');
+
+      sendTelemetry('PAIRING_FAILED_DIFFERENT_NETWORK', {
+        reason: customDesc || 'Devices on different networks or firewall blocked P2P',
+        elapsedMs: pairingStartTime ? (Date.now() - pairingStartTime) : 0,
+        iceState: (conn && conn.peerConnection) ? conn.peerConnection.iceConnectionState : 'unknown'
+      });
+    }
+
+    function retryFromError() {
+      if (isReceiverMode && currentReceiverTargetId) {
+        connectDirectlyToSender(currentReceiverTargetId, true);
+      } else {
+        if (pendingItem) {
+          setIslandState('qr');
+        } else {
+          setIslandState('idle');
+        }
+      }
     }
 
     let isReceiverMode = false;
@@ -1964,18 +2181,28 @@
       hasStartedSending = false;
 
       if (c.peerConnection) {
+        let iceCheckTimeout = null;
         c.peerConnection.oniceconnectionstatechange = () => {
           const s = c.peerConnection.iceConnectionState;
           console.log('[Sender ICE state]:', s);
           sendTelemetry('ICE_STATE_CHANGE', { role: 'sender', state: s });
           if (s === 'checking') {
             document.getElementById('transfer-eta').textContent = 'Connecting P2P...';
+            if (iceCheckTimeout) clearTimeout(iceCheckTimeout);
+            iceCheckTimeout = setTimeout(() => {
+              if (c.peerConnection && c.peerConnection.iceConnectionState === 'checking' && !hasStartedSending) {
+                document.getElementById('transfer-eta').textContent = 'Connecting... (check same Wi-Fi)';
+              }
+            }, 4500);
           } else if (s === 'connected' || s === 'completed') {
+            if (iceCheckTimeout) clearTimeout(iceCheckTimeout);
             document.getElementById('transfer-eta').textContent = 'P2P Route Ready';
             showToast('P2P connection established!');
           } else if (s === 'disconnected' || s === 'failed') {
+            if (iceCheckTimeout) clearTimeout(iceCheckTimeout);
             if (!hasStartedSending) {
-              document.getElementById('transfer-eta').textContent = 'Waiting for receiver...';
+              document.getElementById('transfer-eta').textContent = 'Different network / firewall';
+              showToast('Pairing failed: Devices are on different networks or blocked by a firewall');
             }
           }
         };
@@ -2534,37 +2761,23 @@
         candidates: localIceCandidates
       });
 
-      // Automatically retry twice before requiring manual tap
-      if (receiverRetryCount < 2) {
+      // Automatically retry once before displaying the firewall error
+      if (receiverRetryCount < 1) {
         receiverRetryCount++;
-        showToast(`Pairing paused (${receiverRetryCount}/2). Re-connecting...`);
+        showToast('Pairing paused. Retrying on same Wi-Fi...');
         setTimeout(() => {
           if (islandState === 'stream' && !incomingFileMeta && !fileReceiveCompleted) {
             connectDirectlyToSender(targetPeerId, true);
           }
-        }, 1200);
+        }, 1000);
         return;
       }
 
-      showToast('Pairing timed out. Tap screen to retry');
-      document.getElementById('transfer-name').textContent = 'Pairing paused';
-      document.getElementById('transfer-eta').textContent = 'Tap to retry';
-      const streamView = document.getElementById('view-stream');
-      const islandPill = document.getElementById('island-pill');
-      const retryAction = () => {
-        if (streamView) { streamView.onclick = null; streamView.style.cursor = ''; }
-        if (islandPill) { islandPill.onclick = null; islandPill.style.cursor = ''; }
-        receiverRetryCount = 0;
-        connectDirectlyToSender(targetPeerId, true);
-      };
-      if (streamView) {
-        streamView.style.cursor = 'pointer';
-        streamView.onclick = retryAction;
-      }
-      if (islandPill) {
-        islandPill.style.cursor = 'pointer';
-        islandPill.onclick = retryAction;
-      }
+      showPairingError(
+        'different_network',
+        'Pairing Failed',
+        'Direct connection blocked by a firewall. Both devices must be on the same local Wi-Fi router (turn off cellular/5G data).'
+      );
     }
 
     async function connectDirectlyToSender(targetPeerId, isRetry = false) {
@@ -2611,14 +2824,45 @@
             };
           } catch(_) {}
 
+          let recvIceCheckTimeout = null;
+          let recvIceStuckTimeout = null;
           pc.oniceconnectionstatechange = () => {
             const s = pc.iceConnectionState;
             console.log('[Receiver ICE state]:', s);
             sendTelemetry('ICE_STATE_CHANGE', { role: 'receiver', state: s, elapsedMs: Date.now() - pairingStartTime });
             if (s === 'checking') {
               document.getElementById('transfer-eta').textContent = 'Connecting P2P...';
+              if (recvIceCheckTimeout) clearTimeout(recvIceCheckTimeout);
+              recvIceCheckTimeout = setTimeout(() => {
+                if (pc.iceConnectionState === 'checking' && !incomingFileMeta && !fileReceiveCompleted) {
+                  document.getElementById('transfer-eta').textContent = 'Checking network...';
+                  showToast('Make sure both devices are on the exact same Wi-Fi (not mobile data)');
+                }
+              }, 4000);
+
+              // If stuck in checking for 10s, fail fast and explain why
+              if (recvIceStuckTimeout) clearTimeout(recvIceStuckTimeout);
+              recvIceStuckTimeout = setTimeout(() => {
+                if (pc.iceConnectionState === 'checking' && !incomingFileMeta && !fileReceiveCompleted) {
+                  showPairingError(
+                    'different_network',
+                    'Pairing Failed',
+                    'Connection stuck connecting P2P. Devices appear to be on different networks or blocked by a firewall. Switch off cellular data and join the same Wi-Fi.'
+                  );
+                }
+              }, 10000);
             } else if (s === 'connected' || s === 'completed') {
+              if (recvIceCheckTimeout) clearTimeout(recvIceCheckTimeout);
+              if (recvIceStuckTimeout) clearTimeout(recvIceStuckTimeout);
               document.getElementById('transfer-eta').textContent = 'P2P Route Ready';
+            } else if (s === 'failed') {
+              if (recvIceCheckTimeout) clearTimeout(recvIceCheckTimeout);
+              if (recvIceStuckTimeout) clearTimeout(recvIceStuckTimeout);
+              showPairingError(
+                'firewall',
+                'Firewall Blocked P2P',
+                'Network firewall or mobile carrier blocked direct peer connection. Both devices must be on the same local Wi-Fi router.'
+              );
             }
           };
         }
