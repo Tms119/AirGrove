@@ -17,7 +17,7 @@
 
   <!-- Libraries -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
-  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 
   <style>
     /* ═══════════════════════════════════════════════════════════════════
@@ -1776,14 +1776,13 @@
           peer = new Peer(undefined, {
             debug: 0,
             config: {
+              sdpSemantics: 'unified-plan',
               iceServers: [
-                { urls: 'stun:stun.cloudflare.com:3478' },
                 { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun.cloudflare.com:3478' },
                 { urls: 'stun:stun1.l.google.com:19302' },
-                { urls: 'stun:stun2.l.google.com:19302' },
-                { urls: 'stun:global.stun.twilio.com:3478' }
-              ],
-              iceCandidatePoolSize: 10
+                { urls: 'stun:stun2.l.google.com:19302' }
+              ]
             }
           });
 
@@ -1807,9 +1806,9 @@
           });
 
           peer.on('connection', c => {
-            if (islandState === 'qr') {
-              showToast('Receiver detected! Connecting...');
-            }
+            showToast('Receiver detected! Connecting...');
+            document.getElementById('transfer-name').textContent = 'Connecting...';
+            document.getElementById('transfer-eta').textContent = 'Pairing with device...';
             setupConnection(c);
           });
 
@@ -1872,9 +1871,46 @@
       conn = c;
       hasStartedSending = false;
 
+      if (c.peerConnection) {
+        c.peerConnection.oniceconnectionstatechange = () => {
+          const s = c.peerConnection.iceConnectionState;
+          console.log('[Sender ICE state]:', s);
+          if (s === 'connected' || s === 'completed') {
+            showToast('P2P connection established!');
+          }
+        };
+      }
+
       const onOpen = () => {
         if (c.dataChannel) {
           try { c.dataChannel.binaryType = 'arraybuffer'; } catch(e) {}
+        }
+        showToast('P2P connected! Sending payload...');
+        if (pendingItem && !hasStartedSending) {
+          if (pendingItem.type === 'clip') {
+            hasStartedSending = true;
+            playChime('connect');
+            setIslandState('stream');
+            try { conn.send(JSON.stringify({ k: 'clip', text: pendingItem.text })); } catch(_) {}
+            setTimeout(() => {
+              if (senderWaitingForReceiver && pendingItem && pendingItem.type === 'clip') {
+                onSenderItemComplete(pendingItem);
+              }
+            }, 600);
+          } else {
+            playChime('connect');
+            setIslandState('stream');
+            const totalChunks = Math.max(1, Math.ceil(pendingItem.size / CHUNK));
+            try {
+              conn.send(JSON.stringify({
+                k: 'meta',
+                name: pendingItem.name,
+                size: pendingItem.size,
+                type: pendingItem.mime || (pendingItem.file && pendingItem.file.type) || 'application/octet-stream',
+                chunks: totalChunks
+              }));
+            } catch(_) {}
+          }
         }
       };
 
@@ -2400,17 +2436,29 @@
           peerInitPromise = null;
         }
         await initMyPeer();
-        const c = peer.connect(targetPeerId, { reliable: true });
+        const c = peer.connect(targetPeerId);
         setupReceiverConnection(c, targetPeerId);
 
-        // 12-second pairing watchdog: if c doesn't open within 12s, trigger retry
+        if (c.peerConnection) {
+          c.peerConnection.oniceconnectionstatechange = () => {
+            const s = c.peerConnection.iceConnectionState;
+            console.log('[Receiver ICE state]:', s);
+            if (s === 'checking') {
+              document.getElementById('transfer-eta').textContent = 'Connecting P2P...';
+            } else if (s === 'connected' || s === 'completed') {
+              document.getElementById('transfer-eta').textContent = 'P2P Route Ready';
+            }
+          };
+        }
+
+        // 15-second pairing watchdog: if c doesn't open within 15s, trigger retry
         receiverWatchdogTimer = setTimeout(() => {
           if (!c.open && !incomingFileMeta && !fileReceiveCompleted) {
-            console.warn('Pairing watchdog fired after 12s');
+            console.warn('Pairing watchdog fired after 15s');
             try { c.close(); } catch(_) {}
             handleReceiverError(targetPeerId, new Error('Pairing timed out'));
           }
-        }, 12000);
+        }, 15000);
       } catch (err) {
         handleReceiverError(targetPeerId, err);
       }
