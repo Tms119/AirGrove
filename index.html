@@ -1441,7 +1441,10 @@
 
     function releaseWakeLock() {
       if (screenWakeLock) {
-        screenWakeLock.release().catch(() => {});
+        try {
+          const res = screenWakeLock.release();
+          if (res && typeof res.catch === 'function') res.catch(() => {});
+        } catch(_) {}
         screenWakeLock = null;
       }
       stopKeepScreenAudio();
@@ -1740,8 +1743,13 @@
       }
 
       try {
-        if (peer && peer.disconnected) {
-          try { peer.reconnect(); } catch(_) {}
+        if (!peer || peer.destroyed || peer.disconnected || !myId) {
+          if (peer && !peer.destroyed) {
+            try { peer.destroy(); } catch(_) {}
+          }
+          peer = null;
+          myId = null;
+          peerInitPromise = null;
         }
         await initMyPeer();
         const shareUrl = buildShareUrl(myId);
@@ -1755,10 +1763,6 @@
 
     function initMyPeer() {
       if (peer && !peer.destroyed && !peer.disconnected && myId) return Promise.resolve(peer);
-      if (peer && peer.disconnected && !peer.destroyed) {
-        try { peer.reconnect(); } catch(_) {}
-        return Promise.resolve(peer);
-      }
       if (peerInitPromise) return peerInitPromise;
 
       peerInitPromise = new Promise((resolve, reject) => {
@@ -1766,31 +1770,18 @@
           if (peer && !peer.destroyed) {
             try { peer.destroy(); } catch(_) {}
           }
+          peer = null;
+          myId = null;
 
           peer = new Peer(undefined, {
             debug: 0,
             config: {
               iceServers: [
+                { urls: 'stun:stun.cloudflare.com:3478' },
                 { urls: 'stun:stun.l.google.com:19302' },
                 { urls: 'stun:stun1.l.google.com:19302' },
-                { urls: 'stun:stun.cloudflare.com:3478' },
-                { urls: 'stun:global.stun.twilio.com:3478' },
-                { urls: 'stun:openrelay.metered.ca:80' },
-                {
-                  urls: 'turn:openrelay.metered.ca:80',
-                  username: 'openrelayproject',
-                  credential: 'openrelayproject'
-                },
-                {
-                  urls: 'turn:openrelay.metered.ca:443',
-                  username: 'openrelayproject',
-                  credential: 'openrelayproject'
-                },
-                {
-                  urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-                  username: 'openrelayproject',
-                  credential: 'openrelayproject'
-                }
+                { urls: 'stun:stun2.l.google.com:19302' },
+                { urls: 'stun:global.stun.twilio.com:3478' }
               ],
               iceCandidatePoolSize: 10
             }
@@ -1810,7 +1801,9 @@
 
           peer.on('disconnected', () => {
             console.warn('PeerJS disconnected from signaling server, reconnecting...');
-            try { peer.reconnect(); } catch(_) {}
+            if (peer && !peer.destroyed) {
+              try { peer.reconnect(); } catch(_) {}
+            }
           });
 
           peer.on('connection', c => {
@@ -1825,9 +1818,10 @@
             peerInitPromise = null;
             console.warn('PeerJS error:', err);
             if (err.type === 'disconnected') {
-              try { peer.reconnect(); } catch(_) {}
+              if (peer && !peer.destroyed) try { peer.reconnect(); } catch(_) {}
             } else if (err.type === 'unavailable-id') {
               myId = null;
+              peer = null;
               initMyPeer();
             } else if (islandState === 'stream' && !incomingFileMeta && !fileReceiveCompleted && currentReceiverTargetId) {
               handleReceiverError(currentReceiverTargetId, err);
@@ -1844,7 +1838,7 @@
                   try { peer.socket.send({ type: 'HEARTBEAT' }); } catch(_) {}
                 }
               }
-            }, 4000);
+            }, 3000);
           }
         } catch(e) {
           peerInitPromise = null;
@@ -2349,12 +2343,12 @@
       // If this is the first failure, automatically retry once
       if (receiverRetryCount < 1) {
         receiverRetryCount++;
-        showToast('Pairing interrupted. Retrying with fallback relay...');
+        showToast('Pairing interrupted. Re-connecting...');
         setTimeout(() => {
           if (islandState === 'stream' && !incomingFileMeta && !fileReceiveCompleted) {
             connectDirectlyToSender(targetPeerId, true);
           }
-        }, 1200);
+        }, 1000);
         return;
       }
 
@@ -2397,22 +2391,26 @@
           try { conn.close(); } catch(_) {}
           conn = null;
         }
-        if (peer && (peer.destroyed || peer.disconnected)) {
-          if (peer.disconnected) try { peer.reconnect(); } catch(_) {}
-          else peerInitPromise = null;
+        if (!peer || peer.destroyed || peer.disconnected) {
+          if (peer && !peer.destroyed) {
+            try { peer.destroy(); } catch(_) {}
+          }
+          peer = null;
+          myId = null;
+          peerInitPromise = null;
         }
         await initMyPeer();
         const c = peer.connect(targetPeerId, { reliable: true });
         setupReceiverConnection(c, targetPeerId);
 
-        // 7-second pairing watchdog: if c doesn't open within 7s, trigger retry
+        // 12-second pairing watchdog: if c doesn't open within 12s, trigger retry
         receiverWatchdogTimer = setTimeout(() => {
           if (!c.open && !incomingFileMeta && !fileReceiveCompleted) {
-            console.warn('Pairing watchdog fired after 7s');
+            console.warn('Pairing watchdog fired after 12s');
             try { c.close(); } catch(_) {}
             handleReceiverError(targetPeerId, new Error('Pairing timed out'));
           }
-        }, 7000);
+        }, 12000);
       } catch (err) {
         handleReceiverError(targetPeerId, err);
       }
