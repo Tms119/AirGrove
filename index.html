@@ -937,31 +937,42 @@
     /* Sound Toggle & Creator Footer */
     .bottom-bar {
       position: fixed;
-      bottom: 20px;
+      bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+      left: 50%;
+      transform: translateX(-50%);
+      width: calc(100% - 32px);
+      max-width: 440px;
+      box-sizing: border-box;
       display: flex;
       align-items: center;
-      gap: 14px;
+      justify-content: space-between;
+      gap: 12px;
       z-index: 90;
-      padding: 6px 18px;
-      background: rgba(10, 20, 14, 0.65);
-      border: 1px solid rgba(255, 255, 255, 0.09);
+      padding: 7px 14px 7px 18px;
+      background: rgba(10, 20, 14, 0.78);
+      border: 1px solid rgba(255, 255, 255, 0.12);
       border-radius: var(--radius-pill);
       backdrop-filter: blur(24px);
       -webkit-backdrop-filter: blur(24px);
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
     }
     .footer-credit {
-      font-size: 0.8rem;
-      color: rgba(255, 255, 255, 0.62);
+      font-size: 0.78rem;
+      color: rgba(255, 255, 255, 0.7);
       font-weight: 500;
       letter-spacing: -0.01em;
-      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      flex: 1;
+      min-width: 0;
     }
     .footer-credit a {
       color: #2ecc71;
       text-decoration: none;
       font-weight: 600;
-      transition: color 0.2s ease, text-decoration 0.2s ease;
+      transition: color 0.2s ease;
     }
     .footer-credit a:hover {
       color: #58d68d;
@@ -970,6 +981,7 @@
     .sound-toggle-btn {
       width: 32px;
       height: 32px;
+      min-width: 32px;
       border-radius: 50%;
       background: rgba(255, 255, 255, 0.08);
       border: 1px solid rgba(255, 255, 255, 0.14);
@@ -980,6 +992,7 @@
       align-items: center;
       justify-content: center;
       transition: all 0.2s ease;
+      flex-shrink: 0;
     }
     .sound-toggle-btn:hover {
       background: rgba(255, 255, 255, 0.18);
@@ -987,12 +1000,17 @@
     }
     @media (max-width: 480px) {
       .bottom-bar {
-        bottom: 12px;
-        padding: 6px 14px;
-        gap: 10px;
+        bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+        width: calc(100% - 24px);
+        padding: 6px 10px 6px 14px;
+        gap: 8px;
       }
       .footer-credit {
-        font-size: 0.73rem;
+        font-size: 0.71rem;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1px;
+        line-height: 1.25;
       }
     }
 
@@ -1185,7 +1203,8 @@
   <!-- Bottom Creator Footer & Sound Toggle -->
   <div class="bottom-bar">
     <div class="footer-credit">
-      Made by Mohammad Sayem · Contact me: <a href="mailto:sayem@peerbros.com">sayem@peerbros.com</a>
+      <span>Made by Mohammad Sayem</span>
+      <span>Contact me: <a href="mailto:sayem@peerbros.com">sayem@peerbros.com</a></span>
     </div>
     <button class="sound-toggle-btn" id="btn-sound" onclick="toggleAudio()" title="Toggle Sound">
       🔊
@@ -1445,6 +1464,9 @@
     /* Re-acquire wake lock + restart heartbeat whenever tab becomes visible again */
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
+        if (peer && !peer.destroyed && peer.disconnected) {
+          try { peer.reconnect(); } catch(_) {}
+        }
         if (islandState === 'stream' || senderWaitingForReceiver) {
           acquireWakeLock();
           startHeartbeat();
@@ -1705,7 +1727,7 @@
 
       // Visual placeholder on canvas while ID resolves
       const canvas = document.getElementById('qr-canvas');
-      if (canvas && (!peer || !myId)) {
+      if (canvas && (!peer || !myId || peer.disconnected)) {
         canvas.width = 240;
         canvas.height = 240;
         const ctx = canvas.getContext('2d');
@@ -1718,6 +1740,9 @@
       }
 
       try {
+        if (peer && peer.disconnected) {
+          try { peer.reconnect(); } catch(_) {}
+        }
         await initMyPeer();
         const shareUrl = buildShareUrl(myId);
         document.getElementById('qr-hint-text').textContent = shareUrl;
@@ -1729,7 +1754,11 @@
     }
 
     function initMyPeer() {
-      if (peer && !peer.destroyed && myId) return Promise.resolve(peer);
+      if (peer && !peer.destroyed && !peer.disconnected && myId) return Promise.resolve(peer);
+      if (peer && peer.disconnected && !peer.destroyed) {
+        try { peer.reconnect(); } catch(_) {}
+        return Promise.resolve(peer);
+      }
       if (peerInitPromise) return peerInitPromise;
 
       peerInitPromise = new Promise((resolve, reject) => {
@@ -1745,21 +1774,32 @@
                 { urls: 'stun:stun.l.google.com:19302' },
                 { urls: 'stun:stun1.l.google.com:19302' },
                 { urls: 'stun:stun2.l.google.com:19302' },
-                { urls: 'stun:global.stun.twilio.com:3478' }
-              ]
+                { urls: 'stun:stun3.l.google.com:19302' },
+                { urls: 'stun:stun4.l.google.com:19302' },
+                { urls: 'stun:stun.cloudflare.com:3478' },
+                { urls: 'stun:global.stun.twilio.com:3478' },
+                { urls: 'stun:relay.metered.ca:80' },
+                { urls: 'stun:relay.metered.ca:443' }
+              ],
+              iceCandidatePoolSize: 10
             }
           });
 
           const timeout = setTimeout(() => {
             peerInitPromise = null;
             reject(new Error('Signaling timeout'));
-          }, 8000);
+          }, 10000);
 
           peer.on('open', id => {
             clearTimeout(timeout);
             myId = id;
             peerInitPromise = null;
             resolve(peer);
+          });
+
+          peer.on('disconnected', () => {
+            console.warn('PeerJS disconnected from signaling server, reconnecting...');
+            try { peer.reconnect(); } catch(_) {}
           });
 
           peer.on('connection', c => {
@@ -1770,8 +1810,28 @@
             clearTimeout(timeout);
             peerInitPromise = null;
             console.warn('PeerJS error:', err);
+            if (err.type === 'disconnected') {
+              try { peer.reconnect(); } catch(_) {}
+            } else if (err.type === 'unavailable-id') {
+              myId = null;
+              initMyPeer();
+            } else if (islandState === 'stream' && !incomingFileMeta && !fileReceiveCompleted && currentReceiverTargetId) {
+              handleReceiverError(currentReceiverTargetId, err);
+            }
             reject(err);
           });
+
+          if (!window._peerHeartbeat) {
+            window._peerHeartbeat = setInterval(() => {
+              if (peer && !peer.destroyed) {
+                if (peer.disconnected) {
+                  try { peer.reconnect(); } catch(_) {}
+                } else if (peer.socket && typeof peer.socket.send === 'function' && peer.socket._ws && peer.socket._ws.readyState === 1) {
+                  try { peer.socket.send({ type: 'HEARTBEAT' }); } catch(_) {}
+                }
+              }
+            }, 6000);
+          }
         } catch(e) {
           peerInitPromise = null;
           reject(e);
@@ -1802,7 +1862,6 @@
 
     function setupConnection(c) {
       conn = c;
-      c.serialization = 'raw';
       hasStartedSending = false;
 
       const onOpen = () => {
@@ -1816,6 +1875,10 @@
       } else {
         c.on('open', onOpen);
       }
+
+      c.on('error', err => {
+        console.warn('Sender connection error:', err);
+      });
 
       c.on('data', async data => {
         if (typeof data === 'string') {
@@ -2258,24 +2321,64 @@
     /* ═══════════════════════════════════════════════════════════════════
        RECEIVER FLOW: RAW BINARY INGESTION
        ═══════════════════════════════════════════════════════════════════ */
-    async function connectDirectlyToSender(targetPeerId) {
+    let currentReceiverTargetId = null;
+    let receiverRetryCount = 0;
+
+    function handleReceiverError(targetPeerId, err) {
+      console.warn('Receiver error:', err);
+      if (receiverReadyInterval) { clearInterval(receiverReadyInterval); receiverReadyInterval = null; }
+      stopHeartbeat();
+      releaseWakeLock();
+
+      // If this is the first failure, automatically retry once
+      if (receiverRetryCount < 1) {
+        receiverRetryCount++;
+        showToast('Pairing interrupted. Retrying...');
+        setTimeout(() => {
+          if (islandState === 'stream' && !incomingFileMeta && !fileReceiveCompleted) {
+            connectDirectlyToSender(targetPeerId, true);
+          }
+        }, 1200);
+        return;
+      }
+
+      showToast('Pairing timed out. Tap screen to retry');
+      document.getElementById('transfer-name').textContent = 'Pairing paused';
+      document.getElementById('transfer-eta').textContent = 'Tap to retry';
+      const streamView = document.getElementById('view-stream');
+      if (streamView && targetPeerId) {
+        streamView.style.cursor = 'pointer';
+        streamView.onclick = () => {
+          streamView.onclick = null;
+          streamView.style.cursor = '';
+          receiverRetryCount = 0;
+          connectDirectlyToSender(targetPeerId, true);
+        };
+      }
+    }
+
+    async function connectDirectlyToSender(targetPeerId, isRetry = false) {
+      currentReceiverTargetId = targetPeerId;
+      if (!isRetry) receiverRetryCount = 0;
       acquireWakeLock();
-      setIslandState('stream'); // boots AuraOrbit.init() internally
-      AuraOrbit.setProgress(5); // small initial pulse so the orbit is visible immediately
-      document.getElementById('transfer-name').textContent = 'Connecting...';
+      setIslandState('stream');
+      AuraOrbit.setProgress(5);
+      document.getElementById('transfer-name').textContent = isRetry ? 'Retrying...' : 'Connecting...';
       document.getElementById('activity-icon').textContent = '⚡';
       document.getElementById('transfer-eta').textContent = 'Pairing...';
       document.getElementById('transfer-pct').textContent = '';
       document.getElementById('transfer-speed').textContent = '';
-      AuraOrbit.setProgress(5);
 
       try {
+        if (peer && (peer.destroyed || peer.disconnected)) {
+          if (peer.disconnected) try { peer.reconnect(); } catch(_) {}
+          else peerInitPromise = null;
+        }
         await initMyPeer();
-        const c = peer.connect(targetPeerId, { reliable: true, serialization: 'raw' });
-        setupReceiverConnection(c);
+        const c = peer.connect(targetPeerId, { reliable: true });
+        setupReceiverConnection(c, targetPeerId);
       } catch (err) {
-        releaseWakeLock();
-        showToast('Connection issue: ' + err.message);
+        handleReceiverError(targetPeerId, err);
       }
     }
 
@@ -2283,9 +2386,8 @@
 
     let receiverReadyInterval = null;
 
-    function setupReceiverConnection(c) {
+    function setupReceiverConnection(c, targetPeerId) {
       conn = c;
-      c.serialization = 'raw';
       incomingChunks = null;
       incomingFileMeta = null;
       incomingReceivedCount = 0;
@@ -2326,6 +2428,10 @@
       } else {
         c.on('open', onOpen);
       }
+
+      c.on('error', err => {
+        handleReceiverError(targetPeerId, err);
+      });
 
       c.on('data', async data => {
         if (typeof data === 'string') {
@@ -2383,13 +2489,6 @@
         stopHeartbeat();
         releaseWakeLock();
         if (islandState === 'stream') showToast('Connection closed');
-      });
-
-      c.on('error', err => {
-        if (receiverReadyInterval) { clearInterval(receiverReadyInterval); receiverReadyInterval = null; }
-        stopHeartbeat();
-        releaseWakeLock();
-        showToast('Connection issue: ' + err.message);
       });
     }
 
