@@ -54,12 +54,13 @@
       background: var(--bg);
       color: var(--text-primary);
       min-height: 100vh;
+      min-height: 100dvh;
       overflow-x: hidden;
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: flex-start;
-      padding: 24px 20px 60px;
+      justify-content: center;
+      padding: 24px 20px 80px;
       position: relative;
       -webkit-font-smoothing: antialiased;
     }
@@ -75,9 +76,9 @@
       pointer-events: none;
       z-index: 0;
       background:
-        radial-gradient(circle at 50% 5%, rgba(46, 204, 113, 0.16) 0%, transparent 50%),
+        radial-gradient(circle at 50% 50%, rgba(46, 204, 113, 0.16) 0%, transparent 55%),
         radial-gradient(circle at 80% 80%, rgba(39, 174, 96, 0.05) 0%, transparent 45%),
-        radial-gradient(circle at 20% 85%, rgba(20, 61, 38, 0.04) 0%, transparent 45%);
+        radial-gradient(circle at 20% 20%, rgba(20, 61, 38, 0.05) 0%, transparent 45%);
     }
 
     /* Full Window Drag Scrim */
@@ -130,7 +131,8 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      margin-top: 6px;
+      justify-content: center;
+      margin: auto 0;
     }
 
     .dynamic-island {
@@ -932,34 +934,66 @@
       }
     }
 
-    /* Sound Toggle & Brand Footer */
+    /* Sound Toggle & Creator Footer */
     .bottom-bar {
       position: fixed;
-      bottom: 24px;
+      bottom: 20px;
       display: flex;
       align-items: center;
-      gap: 16px;
+      gap: 14px;
       z-index: 90;
+      padding: 6px 18px;
+      background: rgba(10, 20, 14, 0.65);
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      border-radius: var(--radius-pill);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    }
+    .footer-credit {
+      font-size: 0.8rem;
+      color: rgba(255, 255, 255, 0.62);
+      font-weight: 500;
+      letter-spacing: -0.01em;
+      white-space: nowrap;
+    }
+    .footer-credit a {
+      color: #2ecc71;
+      text-decoration: none;
+      font-weight: 600;
+      transition: color 0.2s ease, text-decoration 0.2s ease;
+    }
+    .footer-credit a:hover {
+      color: #58d68d;
+      text-decoration: underline;
     }
     .sound-toggle-btn {
-      width: 38px;
-      height: 38px;
+      width: 32px;
+      height: 32px;
       border-radius: 50%;
       background: rgba(255, 255, 255, 0.08);
       border: 1px solid rgba(255, 255, 255, 0.14);
       color: #ffffff;
-      font-size: 16px;
+      font-size: 14px;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
       transition: all 0.2s ease;
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
     }
     .sound-toggle-btn:hover {
-      background: rgba(255, 255, 255, 0.16);
+      background: rgba(255, 255, 255, 0.18);
       transform: scale(1.08);
+    }
+    @media (max-width: 480px) {
+      .bottom-bar {
+        bottom: 12px;
+        padding: 6px 14px;
+        gap: 10px;
+      }
+      .footer-credit {
+        font-size: 0.73rem;
+      }
     }
 
     /* Island Toast */
@@ -1148,8 +1182,11 @@
     </div>
   </div>
 
-  <!-- Bottom Sound Toggle -->
+  <!-- Bottom Creator Footer & Sound Toggle -->
   <div class="bottom-bar">
+    <div class="footer-credit">
+      Made by Mohammad Sayem · Contact me: <a href="mailto:sayem@peerbros.com">sayem@peerbros.com</a>
+    </div>
     <button class="sound-toggle-btn" id="btn-sound" onclick="toggleAudio()" title="Toggle Sound">
       🔊
     </button>
