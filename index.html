@@ -1773,13 +1773,24 @@
               iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
                 { urls: 'stun:stun1.l.google.com:19302' },
-                { urls: 'stun:stun2.l.google.com:19302' },
-                { urls: 'stun:stun3.l.google.com:19302' },
-                { urls: 'stun:stun4.l.google.com:19302' },
                 { urls: 'stun:stun.cloudflare.com:3478' },
                 { urls: 'stun:global.stun.twilio.com:3478' },
-                { urls: 'stun:relay.metered.ca:80' },
-                { urls: 'stun:relay.metered.ca:443' }
+                { urls: 'stun:openrelay.metered.ca:80' },
+                {
+                  urls: 'turn:openrelay.metered.ca:80',
+                  username: 'openrelayproject',
+                  credential: 'openrelayproject'
+                },
+                {
+                  urls: 'turn:openrelay.metered.ca:443',
+                  username: 'openrelayproject',
+                  credential: 'openrelayproject'
+                },
+                {
+                  urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+                  username: 'openrelayproject',
+                  credential: 'openrelayproject'
+                }
               ],
               iceCandidatePoolSize: 10
             }
@@ -1803,6 +1814,9 @@
           });
 
           peer.on('connection', c => {
+            if (islandState === 'qr') {
+              showToast('Receiver detected! Connecting...');
+            }
             setupConnection(c);
           });
 
@@ -1830,7 +1844,7 @@
                   try { peer.socket.send({ type: 'HEARTBEAT' }); } catch(_) {}
                 }
               }
-            }, 6000);
+            }, 4000);
           }
         } catch(e) {
           peerInitPromise = null;
@@ -2323,9 +2337,11 @@
        ═══════════════════════════════════════════════════════════════════ */
     let currentReceiverTargetId = null;
     let receiverRetryCount = 0;
+    let receiverWatchdogTimer = null;
 
     function handleReceiverError(targetPeerId, err) {
       console.warn('Receiver error:', err);
+      if (receiverWatchdogTimer) { clearTimeout(receiverWatchdogTimer); receiverWatchdogTimer = null; }
       if (receiverReadyInterval) { clearInterval(receiverReadyInterval); receiverReadyInterval = null; }
       stopHeartbeat();
       releaseWakeLock();
@@ -2333,7 +2349,7 @@
       // If this is the first failure, automatically retry once
       if (receiverRetryCount < 1) {
         receiverRetryCount++;
-        showToast('Pairing interrupted. Retrying...');
+        showToast('Pairing interrupted. Retrying with fallback relay...');
         setTimeout(() => {
           if (islandState === 'stream' && !incomingFileMeta && !fileReceiveCompleted) {
             connectDirectlyToSender(targetPeerId, true);
@@ -2346,30 +2362,41 @@
       document.getElementById('transfer-name').textContent = 'Pairing paused';
       document.getElementById('transfer-eta').textContent = 'Tap to retry';
       const streamView = document.getElementById('view-stream');
-      if (streamView && targetPeerId) {
+      const islandPill = document.getElementById('island-pill');
+      const retryAction = () => {
+        if (streamView) { streamView.onclick = null; streamView.style.cursor = ''; }
+        if (islandPill) { islandPill.onclick = null; islandPill.style.cursor = ''; }
+        receiverRetryCount = 0;
+        connectDirectlyToSender(targetPeerId, true);
+      };
+      if (streamView) {
         streamView.style.cursor = 'pointer';
-        streamView.onclick = () => {
-          streamView.onclick = null;
-          streamView.style.cursor = '';
-          receiverRetryCount = 0;
-          connectDirectlyToSender(targetPeerId, true);
-        };
+        streamView.onclick = retryAction;
+      }
+      if (islandPill) {
+        islandPill.style.cursor = 'pointer';
+        islandPill.onclick = retryAction;
       }
     }
 
     async function connectDirectlyToSender(targetPeerId, isRetry = false) {
       currentReceiverTargetId = targetPeerId;
       if (!isRetry) receiverRetryCount = 0;
+      if (receiverWatchdogTimer) { clearTimeout(receiverWatchdogTimer); receiverWatchdogTimer = null; }
       acquireWakeLock();
       setIslandState('stream');
       AuraOrbit.setProgress(5);
-      document.getElementById('transfer-name').textContent = isRetry ? 'Retrying...' : 'Connecting...';
+      document.getElementById('transfer-name').textContent = isRetry ? 'Retrying pair...' : 'Connecting...';
       document.getElementById('activity-icon').textContent = '⚡';
       document.getElementById('transfer-eta').textContent = 'Pairing...';
       document.getElementById('transfer-pct').textContent = '';
       document.getElementById('transfer-speed').textContent = '';
 
       try {
+        if (conn) {
+          try { conn.close(); } catch(_) {}
+          conn = null;
+        }
         if (peer && (peer.destroyed || peer.disconnected)) {
           if (peer.disconnected) try { peer.reconnect(); } catch(_) {}
           else peerInitPromise = null;
@@ -2377,6 +2404,15 @@
         await initMyPeer();
         const c = peer.connect(targetPeerId, { reliable: true });
         setupReceiverConnection(c, targetPeerId);
+
+        // 7-second pairing watchdog: if c doesn't open within 7s, trigger retry
+        receiverWatchdogTimer = setTimeout(() => {
+          if (!c.open && !incomingFileMeta && !fileReceiveCompleted) {
+            console.warn('Pairing watchdog fired after 7s');
+            try { c.close(); } catch(_) {}
+            handleReceiverError(targetPeerId, new Error('Pairing timed out'));
+          }
+        }, 7000);
       } catch (err) {
         handleReceiverError(targetPeerId, err);
       }
@@ -2397,6 +2433,7 @@
       if (receiverReadyInterval) clearInterval(receiverReadyInterval);
 
       const onOpen = () => {
+        if (receiverWatchdogTimer) { clearTimeout(receiverWatchdogTimer); receiverWatchdogTimer = null; }
         if (c.dataChannel) {
           try { c.dataChannel.binaryType = 'arraybuffer'; } catch(e) {}
         }
@@ -2430,6 +2467,7 @@
       }
 
       c.on('error', err => {
+        if (receiverWatchdogTimer) { clearTimeout(receiverWatchdogTimer); receiverWatchdogTimer = null; }
         handleReceiverError(targetPeerId, err);
       });
 
@@ -2485,10 +2523,11 @@
       });
 
       c.on('close', () => {
+        if (receiverWatchdogTimer) { clearTimeout(receiverWatchdogTimer); receiverWatchdogTimer = null; }
         if (receiverReadyInterval) { clearInterval(receiverReadyInterval); receiverReadyInterval = null; }
         stopHeartbeat();
         releaseWakeLock();
-        if (islandState === 'stream') showToast('Connection closed');
+        if (islandState === 'stream' && !fileReceiveCompleted) showToast('Connection closed');
       });
     }
 
