@@ -1,0 +1,2738 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <!-- Force no caching so mobile browsers always get the latest version -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <title>Airgrove · Quick Local Share</title>
+  <meta name="description" content="Send files, photos, and notes directly between your devices in seconds. No setup, no accounts." />
+
+  <!-- Google Fonts: Plus Jakarta Sans & Outfit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+
+  <style>
+    /* ═══════════════════════════════════════════════════════════════════
+       AIRGROVE: DESIGN SYSTEM
+       ═══════════════════════════════════════════════════════════════════ */
+    :root {
+      --bg: #060907;
+      --island-bg: #000000;
+      --island-border: rgba(255, 255, 255, 0.14);
+      --island-glow: rgba(46, 204, 113, 0.25);
+
+      --accent: #2ecc71;
+      --accent-glow: rgba(46, 204, 113, 0.5);
+      --accent-light: #58d68d;
+      --accent-soft: rgba(46, 204, 113, 0.14);
+
+      --text-primary: #ffffff;
+      --text-secondary: #9aa59e;
+      --text-muted: #5e6b63;
+
+      --spring: cubic-bezier(0.16, 1, 0.3, 1);
+      --spring-jelly: cubic-bezier(0.22, 1.35, 0.36, 1);
+      --radius-pill: 9999px;
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text-primary);
+      min-height: 100vh;
+      overflow-x: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 24px 20px 60px;
+      position: relative;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    h1, h2, h3, .brand-title {
+      font-family: 'Outfit', sans-serif;
+    }
+
+    /* Ambient Mist Glow */
+    .ambient-glow {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      background:
+        radial-gradient(circle at 50% 5%, rgba(46, 204, 113, 0.16) 0%, transparent 50%),
+        radial-gradient(circle at 80% 80%, rgba(39, 174, 96, 0.05) 0%, transparent 45%),
+        radial-gradient(circle at 20% 85%, rgba(20, 61, 38, 0.04) 0%, transparent 45%);
+    }
+
+    /* Full Window Drag Scrim */
+    .window-drop-scrim {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.88);
+      backdrop-filter: blur(28px);
+      -webkit-backdrop-filter: blur(28px);
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s var(--spring);
+    }
+    .window-drop-scrim.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .scrim-island {
+      padding: 24px 44px;
+      background: #000000;
+      border: 1.5px solid var(--accent);
+      border-radius: var(--radius-pill);
+      box-shadow: 0 0 50px var(--accent-glow);
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #ffffff;
+      transform: scale(0.92);
+      transition: transform 0.35s var(--spring-jelly);
+    }
+    .window-drop-scrim.active .scrim-island {
+      transform: scale(1);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════
+       THE DYNAMIC ISLAND NOTCH (TOP DOCKED)
+       ═══════════════════════════════════════════════════════════════════ */
+    .notch-container {
+      position: relative;
+      z-index: 100;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-top: 6px;
+    }
+
+    .dynamic-island {
+      position: relative;
+      background: var(--island-bg);
+      border: 1px solid var(--island-border);
+      border-radius: 44px;
+      box-shadow:
+        0 24px 65px rgba(0, 0, 0, 0.85),
+        0 0 0 1px rgba(255, 255, 255, 0.08) inset,
+        0 0 35px var(--island-glow);
+      transition:
+        width 0.48s var(--spring-jelly),
+        height 0.48s var(--spring-jelly),
+        border-radius 0.48s var(--spring),
+        padding 0.4s var(--spring),
+        box-shadow 0.4s ease,
+        transform 0.4s var(--spring-jelly);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+
+    /* Jelly Bounce Pulse */
+    .dynamic-island.squish-pop {
+      animation: islandSquish 0.5s var(--spring-jelly) forwards;
+    }
+    @keyframes islandSquish {
+      0% { transform: scale(0.96, 1.04); }
+      40% { transform: scale(1.03, 0.97); }
+      70% { transform: scale(0.99, 1.01); }
+      100% { transform: scale(1, 1); }
+    }
+
+    /* Island Size States */
+    .dynamic-island.state-compact {
+      width: 230px;
+      height: 44px;
+      padding: 0 16px;
+      cursor: pointer;
+    }
+    .dynamic-island.state-compact:hover {
+      width: 248px;
+      border-color: rgba(255, 255, 255, 0.25);
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.9), 0 0 45px var(--accent-glow);
+    }
+
+    .dynamic-island.state-idle-drop {
+      width: 380px;
+      height: 290px;
+      border-radius: 38px;
+      padding: 24px;
+    }
+
+    .dynamic-island.state-qr {
+      width: 380px;
+      height: 490px;
+      border-radius: 42px;
+      padding: 24px;
+    }
+
+    .dynamic-island.state-transfer {
+      width: 380px;
+      height: 80px;
+      border-radius: 40px;
+      padding: 12px 20px;
+    }
+
+    .dynamic-island.state-complete {
+      width: 380px;
+      height: 350px;
+      border-radius: 42px;
+      padding: 22px 24px 18px;
+    }
+
+    @media (max-width: 420px) {
+      .dynamic-island.state-qr {
+        width: 92vw;
+        height: 500px;
+      }
+      .dynamic-island.state-idle-drop,
+      .dynamic-island.state-transfer {
+        width: 92vw;
+      }
+      .dynamic-island.state-complete {
+        width: 92vw;
+        height: 350px;
+        padding: 20px 18px 16px;
+      }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════
+       ISLAND VIEWS
+       ═══════════════════════════════════════════════════════════════════ */
+    .island-view {
+      width: 100%;
+      height: 100%;
+      display: none;
+      opacity: 0;
+      transform: scale(0.96);
+      transition: opacity 0.3s ease, transform 0.35s var(--spring);
+    }
+    .island-view.active {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    /* ─── 1. COMPACT VIEW ─── */
+    .compact-content {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .compact-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: #ffffff;
+    }
+    .compact-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 10px var(--accent);
+      animation: islandDotPulse 2s infinite ease-in-out;
+    }
+    @keyframes islandDotPulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.3); opacity: 0.6; }
+    }
+    .compact-right {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    /* ─── 2. IDLE / DROP & TEXT VIEW ─── */
+    .idle-view-wrap {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .drop-trigger-box {
+      flex: 1;
+      border: 1px dashed rgba(255, 255, 255, 0.16);
+      border-radius: 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      padding: 16px;
+      text-align: center;
+      background: rgba(255, 255, 255, 0.02);
+      transition: all 0.25s ease;
+    }
+    .drop-trigger-box:hover {
+      border-color: var(--accent);
+      background: rgba(46, 204, 113, 0.06);
+    }
+    .drop-icon {
+      font-size: 32px;
+      margin-bottom: 8px;
+      filter: drop-shadow(0 0 12px var(--accent-glow));
+      transition: transform 0.3s var(--spring-jelly);
+    }
+    .drop-trigger-box:hover .drop-icon {
+      transform: scale(1.15) translateY(-2px);
+    }
+    .drop-headline {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 2px;
+    }
+    .drop-sub {
+      font-size: 0.78rem;
+      color: var(--text-secondary);
+    }
+
+    .quick-clip-row {
+      display: flex;
+      gap: 8px;
+      width: 100%;
+    }
+    .quick-clip-input {
+      flex: 1;
+      height: 40px;
+      border-radius: var(--radius-pill);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(255, 255, 255, 0.05);
+      padding: 0 16px;
+      color: #ffffff;
+      font-family: inherit;
+      font-size: 0.85rem;
+      transition: all 0.2s ease;
+    }
+    .quick-clip-input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px var(--accent-soft);
+      background: rgba(255, 255, 255, 0.08);
+    }
+    .quick-clip-input::placeholder {
+      color: var(--text-muted);
+    }
+    .btn-quick-send {
+      padding: 0 16px;
+      height: 40px;
+      border-radius: var(--radius-pill);
+      border: none;
+      background: var(--accent);
+      color: #000000;
+      font-size: 0.82rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.2s ease;
+      flex-shrink: 0;
+    }
+    .btn-quick-send:hover {
+      transform: scale(1.04);
+      box-shadow: 0 0 14px var(--accent-glow);
+    }
+
+    /* ─── 3. 100% BULLETPROOF LIVING TREE QR VIEW ─── */
+    .qr-stage-wrap {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .qr-frame {
+      position: relative;
+      width: 260px;
+      height: 260px;
+      background: #ffffff;
+      border-radius: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 45px rgba(46, 204, 113, 0.35);
+      margin-bottom: 14px;
+      padding: 10px;
+    }
+    #qr-canvas {
+      width: 240px !important;
+      height: 240px !important;
+      display: block;
+      border-radius: 14px;
+    }
+    .qr-aura {
+      position: absolute;
+      inset: -14px;
+      border-radius: 38px;
+      background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
+      pointer-events: none;
+      animation: qrAura 4s infinite ease-in-out;
+      z-index: 0;
+    }
+    @keyframes qrAura {
+      0%, 100% { opacity: 0.4; transform: scale(0.96); }
+      50% { opacity: 0.85; transform: scale(1.04); }
+    }
+    .qr-island-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 2px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .qr-island-hint {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      margin-bottom: 14px;
+      font-family: monospace;
+    }
+
+    .island-btn-row {
+      display: flex;
+      gap: 10px;
+      width: 100%;
+    }
+    .island-btn {
+      flex: 1;
+      padding: 12px 18px;
+      border-radius: var(--radius-pill);
+      border: none;
+      background: #ffffff;
+      color: #000000;
+      font-size: 0.88rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: all 0.25s var(--spring);
+    }
+    .island-btn:hover {
+      transform: scale(1.03);
+      box-shadow: 0 0 20px rgba(255, 255, 255, 0.4);
+    }
+    .island-btn.btn-ghost {
+      background: rgba(255, 255, 255, 0.1);
+      color: #ffffff;
+      flex: 0 0 auto;
+    }
+    .island-btn.btn-ghost:hover {
+      background: rgba(255, 255, 255, 0.18);
+    }
+
+    /* ─── 4. APPLE AIRDROP LIVE ACTIVITY CAPSULE ─── */
+    .apple-live-activity {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    /* ─── AURA ORBIT RING (canvas) ─── */
+    .radial-ring-wrap {
+      position: relative;
+      width: 52px;
+      height: 52px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #aura-orbit-canvas {
+      position: absolute;
+      inset: 0;
+      width: 52px;
+      height: 52px;
+    }
+    .radial-center-icon {
+      position: relative;
+      z-index: 1;
+      font-size: 15px;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+    }
+
+    .activity-center {
+      flex-grow: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .activity-title-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+    }
+    .activity-filename {
+      font-size: 0.86rem;
+      font-weight: 700;
+      color: #ffffff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 150px;
+    }
+    .activity-eta-badge {
+      font-size: 0.76rem;
+      font-weight: 700;
+      color: var(--accent-light);
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      letter-spacing: -0.01em;
+    }
+
+    .activity-right {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      flex-shrink: 0;
+      gap: 2px;
+    }
+    .activity-speed-val {
+      font-size: 0.78rem;
+      font-family: monospace;
+      font-weight: 700;
+      color: #ffffff;
+    }
+    .activity-pct-val {
+      font-size: 0.7rem;
+      color: var(--text-secondary);
+      font-weight: 600;
+    }
+
+    /* ─── 5. COMPLETE VIEW ─── */
+    .complete-card-wrap {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      text-align: center;
+      position: relative;
+    }
+
+    /* File Complete Hero Staging */
+    .complete-file-card {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      text-align: center;
+    }
+
+    .file-hero-top {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+    }
+
+    .file-hero-squircle {
+      position: relative;
+      width: 72px;
+      height: 72px;
+      border-radius: 22px;
+      background: linear-gradient(145deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.03));
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5), 0 0 24px rgba(46, 204, 113, 0.22);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 12px;
+      overflow: visible;
+      animation: heroIconZoom 0.52s var(--spring-jelly) 0.05s both;
+    }
+
+    .file-hero-icon {
+      font-size: 34px;
+      line-height: 1;
+      filter: drop-shadow(0 2px 8px rgba(0,0,0,0.4));
+    }
+
+    .file-hero-thumb {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 20px;
+    }
+
+    .file-hero-check {
+      position: absolute;
+      bottom: -4px;
+      right: -4px;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: #2ecc71;
+      border: 2px solid #000000;
+      color: #000000;
+      font-size: 13px;
+      font-weight: 900;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6), 0 0 12px rgba(46, 204, 113, 0.6);
+      animation: heroBadgePop 0.4s var(--spring-jelly) 0.24s both;
+    }
+
+    .file-hero-name {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #ffffff;
+      letter-spacing: -0.015em;
+      max-width: 90%;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: 6px;
+      animation: heroFadeSlideUp 0.45s var(--spring) 0.14s both;
+    }
+
+    .file-hero-meta-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 14px;
+      border-radius: var(--radius-pill);
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--accent-light);
+      letter-spacing: 0.01em;
+      animation: heroFadeSlideUp 0.45s var(--spring) 0.2s both;
+    }
+
+    .file-hero-meta-pill .file-hero-dot {
+      color: rgba(255, 255, 255, 0.3);
+      font-size: 0.7rem;
+    }
+
+    .file-hero-actions {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn-download-hero {
+      width: 100%;
+      max-width: 330px;
+      height: 48px;
+      border-radius: var(--radius-pill);
+      border: none;
+      outline: none;
+      font-family: inherit;
+      background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
+      color: #000000;
+      font-size: 0.92rem;
+      font-weight: 800;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.2s var(--spring);
+      animation:
+        heroBtnPop 0.5s var(--spring-jelly) 0.28s both,
+        downloadPulse 2.4s ease-in-out 0.8s infinite;
+    }
+
+    .btn-download-hero:hover {
+      transform: scale(1.02);
+      box-shadow: 0 10px 28px rgba(46, 204, 113, 0.5);
+    }
+
+    .btn-download-hero:active {
+      transform: scale(0.97);
+    }
+
+    .btn-download-hero .hero-dl-icon {
+      font-size: 1.15rem;
+      font-weight: 900;
+      display: inline-block;
+      transition: transform 0.2s ease;
+    }
+
+    .btn-download-hero:hover .hero-dl-icon {
+      transform: translateY(2px);
+    }
+
+    .file-download-subhint {
+      font-size: 0.73rem;
+      color: var(--text-secondary);
+      font-weight: 500;
+      animation: heroFadeSlideUp 0.4s ease 0.36s both;
+    }
+
+    .file-done-btn {
+      margin-top: 2px;
+      font-size: 0.8rem;
+      padding: 4px 16px;
+      height: 28px;
+      color: rgba(255, 255, 255, 0.5);
+      animation: heroFadeSlideUp 0.4s ease 0.4s both;
+    }
+    .file-done-btn:hover {
+      color: #ffffff;
+    }
+
+    /* Clipboard Complete Card */
+    .complete-clip-card {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      text-align: center;
+      animation: heroFadeSlideUp 0.35s ease both;
+    }
+
+    .complete-header-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 4px;
+    }
+    .complete-badge {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #000000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      font-weight: 800;
+      box-shadow: 0 0 20px var(--accent-glow);
+    }
+    .complete-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #ffffff;
+    }
+
+    .clipboard-display-box {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 18px;
+      padding: 14px 16px;
+      margin: 8px 0 12px;
+      text-align: left;
+      position: relative;
+      max-height: 120px;
+      overflow-y: auto;
+    }
+    .clipboard-text-preview {
+      font-size: 0.88rem;
+      color: #e5eae7;
+      line-height: 1.5;
+      word-break: break-word;
+      white-space: pre-wrap;
+    }
+    .clipboard-meta-tag {
+      font-size: 0.72rem;
+      color: var(--accent);
+      font-weight: 700;
+      margin-top: 6px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .auto-copied-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: var(--radius-pill);
+      background: rgba(46, 204, 113, 0.18);
+      border: 1px solid var(--accent);
+      color: var(--accent-light);
+      font-size: 0.8rem;
+      font-weight: 700;
+      margin-bottom: 10px;
+      animation: popPill 0.4s var(--spring-jelly) forwards;
+    }
+    @keyframes popPill {
+      from { transform: scale(0.7); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+
+    .complete-actions {
+      display: flex;
+      gap: 8px;
+      width: 100%;
+    }
+    .btn-copy-success {
+      flex: 1;
+      padding: 12px 18px;
+      border-radius: var(--radius-pill);
+      border: none;
+      background: var(--accent);
+      color: #000000;
+      font-size: 0.88rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: all 0.2s var(--spring);
+    }
+    .btn-copy-success:hover {
+      transform: scale(1.02);
+      box-shadow: 0 0 20px var(--accent-glow);
+    }
+    .btn-copy-success.copied {
+      background: #ffffff;
+      color: #000000;
+    }
+
+    .btn-open-link {
+      padding: 12px 18px;
+      border-radius: var(--radius-pill);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      background: rgba(255, 255, 255, 0.1);
+      color: #ffffff;
+      font-size: 0.88rem;
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.2s ease;
+    }
+    .btn-open-link:hover {
+      background: rgba(255, 255, 255, 0.2);
+      transform: scale(1.02);
+    }
+
+    /* Keyframes for Staged Dynamic Island Entrance */
+    @keyframes heroIconZoom {
+      0% {
+        transform: scale(0.3);
+        opacity: 0;
+      }
+      65% {
+        transform: scale(1.12);
+        opacity: 1;
+      }
+      85% {
+        transform: scale(0.96);
+      }
+      100% {
+        transform: scale(1);
+        opacity: 1;
+      }
+    }
+
+    @keyframes heroBadgePop {
+      0% {
+        transform: scale(0);
+        opacity: 0;
+      }
+      60% {
+        transform: scale(1.35);
+        opacity: 1;
+      }
+      100% {
+        transform: scale(1);
+        opacity: 1;
+      }
+    }
+
+    @keyframes heroFadeSlideUp {
+      0% {
+        opacity: 0;
+        transform: translateY(14px);
+      }
+      100% {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes heroBtnPop {
+      0% {
+        opacity: 0;
+        transform: scale(0.88) translateY(12px);
+      }
+      70% {
+        transform: scale(1.03) translateY(-2px);
+        opacity: 1;
+      }
+      100% {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+      }
+    }
+
+    @keyframes downloadPulse {
+      0%, 100% {
+        box-shadow: 0 6px 20px rgba(46, 204, 113, 0.32), 0 0 0 0 rgba(46, 204, 113, 0.35);
+      }
+      50% {
+        box-shadow: 0 8px 28px rgba(46, 204, 113, 0.5), 0 0 0 6px rgba(46, 204, 113, 0);
+      }
+    }
+
+    /* Sound Toggle & Brand Footer */
+    .bottom-bar {
+      position: fixed;
+      bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      z-index: 90;
+    }
+    .sound-toggle-btn {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      color: #ffffff;
+      font-size: 16px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+    }
+    .sound-toggle-btn:hover {
+      background: rgba(255, 255, 255, 0.16);
+      transform: scale(1.08);
+    }
+
+    /* Island Toast */
+    .island-toast {
+      position: fixed;
+      top: 20px;
+      background: #000000;
+      border: 1px solid var(--island-border);
+      color: #ffffff;
+      padding: 8px 18px;
+      border-radius: var(--radius-pill);
+      font-size: 0.82rem;
+      font-weight: 600;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      opacity: 0;
+      transform: translateY(-20px);
+      pointer-events: none;
+      transition: all 0.3s var(--spring);
+      z-index: 9999;
+    }
+    .island-toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Ambient Glow -->
+  <div class="ambient-glow"></div>
+
+  <!-- Full Window Drag Over -->
+  <div class="window-drop-scrim" id="window-scrim">
+    <div class="scrim-island">
+      <span>✨</span> Drop files anywhere to send
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="island-toast">🌿 <span>Message</span></div>
+
+  <!-- Top Docked Dynamic Island Notch -->
+  <div class="notch-container">
+    <div class="dynamic-island state-idle-drop" id="dynamic-island">
+
+      <!-- 1. COMPACT ISLAND VIEW -->
+      <div class="island-view" id="view-compact" onclick="expandIsland()">
+        <div class="compact-content">
+          <div class="compact-left">
+            <span class="compact-dot"></span>
+            <span>Airgrove</span>
+          </div>
+          <div class="compact-right" id="compact-status">Ready</div>
+        </div>
+      </div>
+
+      <!-- 2. IDLE / DROP & TEXT VIEW -->
+      <div class="island-view active" id="view-idle">
+        <div class="idle-view-wrap">
+          <input type="file" id="file-picker" multiple style="display:none;" onchange="onFilesChosen(this.files)" />
+          <div class="drop-trigger-box" onclick="document.getElementById('file-picker').click()">
+            <div class="drop-icon">📁</div>
+            <div class="drop-headline">Drop files or photos here</div>
+            <div class="drop-sub">or click to browse · paste with ⌘V</div>
+          </div>
+
+          <!-- Quick Text / Clipboard Box -->
+          <div class="quick-clip-row">
+            <input type="text" id="quick-text-input" class="quick-clip-input" placeholder="Type or paste a quick note..." onkeydown="if(event.key==='Enter')sendQuickText()" />
+            <button class="btn-quick-send" onclick="sendQuickText()">Send</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. LIVING TREE QR VIEW (100% SCAN RELIABLE) -->
+      <div class="island-view" id="view-qr">
+        <div class="qr-stage-wrap">
+          <div class="qr-frame">
+            <div class="qr-aura"></div>
+            <canvas id="qr-canvas"></canvas>
+          </div>
+          <div class="qr-island-title">
+            <span>📷</span> Scan with your phone camera
+          </div>
+          <div class="qr-island-hint" id="qr-hint-text">Scan with camera to connect</div>
+          <div class="island-btn-row">
+            <button class="island-btn" id="btn-copy" onclick="copyShareLink()">Copy link</button>
+            <button class="island-btn btn-ghost" onclick="setIslandState('idle')">✕</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. STREAMING VIEW: AURA ORBIT LIVE ACTIVITY -->
+      <div class="island-view" id="view-stream" onclick="onIslandStreamClick()" style="cursor:pointer;" title="Tap to view file">
+        <div class="apple-live-activity">
+          <div class="radial-ring-wrap">
+            <canvas id="aura-orbit-canvas" width="104" height="104"></canvas>
+            <div class="radial-center-icon" id="activity-icon">🌱</div>
+          </div>
+
+          <div class="activity-center">
+            <div class="activity-title-row">
+              <span class="activity-filename" id="transfer-name">Item</span>
+              <span class="activity-eta-badge" id="transfer-eta">Connecting...</span>
+            </div>
+          </div>
+
+          <div class="activity-right">
+            <span class="activity-speed-val" id="transfer-speed"></span>
+            <span class="activity-pct-val" id="transfer-pct">0%</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5. COMPLETE VIEW -->
+      <div class="island-view" id="view-complete">
+        <div class="complete-card-wrap">
+
+          <!-- A. FILE HERO COMPLETION CARD (Apple Dynamic Island Staged) -->
+          <div class="complete-file-card" id="complete-file-card">
+            <div class="file-hero-top">
+              <div class="file-hero-squircle">
+                <img id="file-hero-img" class="file-hero-thumb" style="display:none;" alt="Preview" />
+                <span id="file-hero-emoji" class="file-hero-icon">📦</span>
+                <div class="file-hero-check" id="file-hero-check">✓</div>
+              </div>
+              <div class="file-hero-name" id="file-hero-filename">File Ready</div>
+              <div class="file-hero-meta-pill" id="file-hero-meta">
+                <span id="file-hero-size">0 B</span>
+                <span class="file-hero-dot">•</span>
+                <span id="file-hero-status">Ready to save</span>
+              </div>
+            </div>
+
+            <div class="file-hero-actions">
+              <!-- RECEIVER ONLY: Save file button -->
+              <button id="btn-hero-download" class="btn-download-hero" onclick="triggerFileDownload(event)" type="button">
+                <span class="hero-dl-icon">↓</span>
+                <span id="btn-download-label">Save File</span>
+              </button>
+              <!-- SENDER ONLY: Send another file button -->
+              <button id="btn-sender-another" class="btn-download-hero" onclick="resetToSendAnother(event)" type="button" style="display:none;">
+                <span class="hero-dl-icon" style="font-size:1.15rem; font-weight:800;">+</span>
+                <span>Send Another File</span>
+              </button>
+              <div class="file-download-subhint" id="file-download-subhint">
+                Tap to save to your device
+              </div>
+              <button class="island-btn btn-ghost file-done-btn" onclick="resetToIdle(event)">Done</button>
+            </div>
+          </div>
+
+          <!-- B. CLIPBOARD / TEXT COMPLETION CARD -->
+          <div class="complete-clip-card" id="complete-clip-card" style="display:none;">
+            <div class="complete-header-row">
+              <div class="complete-badge" id="complete-badge">✓</div>
+              <div class="complete-title" id="complete-headline">Note dropped</div>
+            </div>
+
+            <div class="auto-copied-pill" id="auto-copied-pill" style="display:none;">
+              <span>✓</span> Copied!
+            </div>
+
+            <div class="clipboard-display-box" id="complete-display-box">
+              <div class="clipboard-text-preview" id="complete-text-preview">Text preview</div>
+              <div class="clipboard-meta-tag" id="complete-meta-tag">📋 Note</div>
+            </div>
+
+            <div class="complete-actions">
+              <button class="btn-copy-success" id="btn-primary-action" onclick="onPrimaryActionClick()">
+                Copy text
+              </button>
+              <a href="#" target="_blank" class="btn-open-link" id="btn-open-link" style="display:none;">
+                Open link ↗
+              </a>
+              <button class="island-btn btn-ghost" onclick="setIslandState('idle')">Done</button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Bottom Sound Toggle -->
+  <div class="bottom-bar">
+    <button class="sound-toggle-btn" id="btn-sound" onclick="toggleAudio()" title="Toggle Sound">
+      🔊
+    </button>
+  </div>
+
+  <script>
+    'use strict';
+
+    /* ═══════════════════════════════════════════════════════════════════
+       STATE
+       ═══════════════════════════════════════════════════════════════════ */
+    let islandState = 'idle';
+    let peer = null;
+    let myId = null;
+    let conn = null;
+    let isMuted = false;
+
+    let pendingItem = null;
+    let incomingFileMeta = null;
+    let incomingChunks = null;
+    let incomingReceivedCount = 0;
+    let incomingTotalBytes = 0;
+    let earlyChunkQueue = [];
+
+    let transferStartTime = 0;
+    let screenWakeLock = null;
+    let heartbeatInterval = null;
+    let senderWaitingForReceiver = false;
+    let lastReceiverPct = 0;
+
+    let receivedBlob = null;
+    let receivedFileName = 'download';
+    let currentBlobUrl = null;
+    let fileReceiveCompleted = false;
+    let lastReceivedType = 'file';
+    let lastReceivedText = '';
+
+    /* ═══════════════════════════════════════════════════════════════════
+       AURA ORBIT CANVAS ENGINE
+       Apple Watch Activity Ring meets Dynamic Island
+       ═══════════════════════════════════════════════════════════════════ */
+    const AuraOrbit = (() => {
+      const DPR = Math.min(window.devicePixelRatio || 1, 3);
+      const SIZE = 52 * DPR;   // canvas logical size × dpr
+      const CX = SIZE / 2, CY = SIZE / 2;
+      const R  = SIZE * 0.38;  // orbit radius
+      const TW = SIZE * 0.065; // track stroke width
+
+      let canvas, ctx;
+      let rafId = null;
+      let currentPct = 0;      // animated value (smoothly lerps to target)
+      let targetPct  = 0;
+      let particles  = [];     // completion burst
+      let complete   = false;
+
+      function init() {
+        canvas = document.getElementById('aura-orbit-canvas');
+        if (!canvas) return;
+        canvas.width  = SIZE;
+        canvas.height = SIZE;
+        canvas.style.width  = '52px';
+        canvas.style.height = '52px';
+        ctx = canvas.getContext('2d');
+        particles = [];
+        complete  = false;
+        currentPct = 0;
+        targetPct  = 0;
+        if (rafId) cancelAnimationFrame(rafId);
+        tick();
+      }
+
+      function setProgress(pct) {
+        targetPct = Math.min(100, Math.max(0, pct));
+        if (pct >= 100 && !complete) triggerBurst();
+      }
+
+      function triggerBurst() {
+        complete = true;
+        const colors = ['#2ecc71','#58d68d','#ffffff','#a9dfbf','#27ae60'];
+        for (let i = 0; i < 18; i++) {
+          const angle = (Math.PI * 2 * i) / 18 - Math.PI / 2;
+          const speed = (0.7 + Math.random() * 0.8) * (SIZE * 0.012);
+          particles.push({
+            x: CX + Math.cos(angle) * R,
+            y: CY + Math.sin(angle) * R,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            r:  (1.5 + Math.random() * 2) * DPR,
+            life: 1,
+            decay: 0.025 + Math.random() * 0.02,
+            color: colors[i % colors.length]
+          });
+        }
+      }
+
+      function stop() {
+        if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+        if (ctx) ctx.clearRect(0, 0, SIZE, SIZE);
+        particles = [];
+        complete  = false;
+      }
+
+      function tick() {
+        rafId = requestAnimationFrame(tick);
+        if (!ctx) return;
+        ctx.clearRect(0, 0, SIZE, SIZE);
+
+        // Smooth lerp toward target (spring-like)
+        currentPct += (targetPct - currentPct) * 0.07;
+        const t = currentPct / 100;            // 0..1
+        const startAngle = -Math.PI / 2;       // 12 o'clock
+        const sweepAngle = Math.PI * 2 * t;    // clockwise fill
+        const dotAngle   = startAngle + sweepAngle;
+
+        // 1. Track ring (dim background)
+        ctx.beginPath();
+        ctx.arc(CX, CY, R, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+        ctx.lineWidth = TW;
+        ctx.stroke();
+
+        if (t > 0.001) {
+          // 2. Glowing trail arc
+          const grad = ctx.createLinearGradient(
+            CX + Math.cos(startAngle) * R, CY + Math.sin(startAngle) * R,
+            CX + Math.cos(dotAngle)   * R, CY + Math.sin(dotAngle)   * R
+          );
+          grad.addColorStop(0,   'rgba(46,204,113,0.15)');
+          grad.addColorStop(0.6, 'rgba(46,204,113,0.7)');
+          grad.addColorStop(1,   'rgba(88,214,141,1)');
+
+          ctx.beginPath();
+          ctx.arc(CX, CY, R, startAngle, dotAngle);
+          ctx.strokeStyle = grad;
+          ctx.lineWidth   = TW;
+          ctx.lineCap     = 'round';
+          ctx.shadowColor = 'rgba(46,204,113,0.8)';
+          ctx.shadowBlur  = 8 * DPR;
+          ctx.stroke();
+          ctx.shadowBlur = 0;
+
+          // 3. Orbiting dot at arc tip
+          const dotX = CX + Math.cos(dotAngle) * R;
+          const dotY = CY + Math.sin(dotAngle) * R;
+          const dotR = TW * 0.85;
+
+          // Outer glow halo
+          const halo = ctx.createRadialGradient(dotX, dotY, 0, dotX, dotY, dotR * 3.5);
+          halo.addColorStop(0,   'rgba(88,214,141,0.55)');
+          halo.addColorStop(1,   'transparent');
+          ctx.beginPath();
+          ctx.arc(dotX, dotY, dotR * 3.5, 0, Math.PI * 2);
+          ctx.fillStyle = halo;
+          ctx.fill();
+
+          // Bright core dot
+          ctx.beginPath();
+          ctx.arc(dotX, dotY, dotR, 0, Math.PI * 2);
+          ctx.fillStyle = '#ffffff';
+          ctx.shadowColor = 'rgba(88,214,141,1)';
+          ctx.shadowBlur  = 5 * DPR;
+          ctx.fill();
+          ctx.shadowBlur = 0;
+        }
+
+        // 4. Burst particles
+        for (let i = particles.length - 1; i >= 0; i--) {
+          const p = particles[i];
+          p.x    += p.vx;
+          p.y    += p.vy;
+          p.vx   *= 0.93;
+          p.vy   *= 0.93;
+          p.life -= p.decay;
+          if (p.life <= 0) { particles.splice(i, 1); continue; }
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.r * p.life, 0, Math.PI * 2);
+          ctx.fillStyle = p.color;
+          ctx.globalAlpha = p.life;
+          ctx.fill();
+          ctx.globalAlpha = 1;
+        }
+      }
+
+      return { init, setProgress, stop };
+    })();
+
+    const CHUNK = 32764; // 32 KB chunk (safe under 64KB WebRTC message limit)
+    const BUFFER_HIGH = 1024 * 1024; // 1 MB high watermark
+    const BUFFER_LOW = 256 * 1024;  // 256 KB low watermark
+
+    /* ═══════════════════════════════════════════════════════════════════
+       SCREEN WAKE LOCK API (KEEPS PHONE SCREEN ON DURING TRANSFER)
+       ═══════════════════════════════════════════════════════════════════ */
+    async function acquireWakeLock() {
+      try {
+        if ('wakeLock' in navigator) {
+          if (screenWakeLock) { try { await screenWakeLock.release(); } catch(_) {} }
+          screenWakeLock = await navigator.wakeLock.request('screen');
+          screenWakeLock.addEventListener('release', () => {
+            if (islandState === 'stream' || senderWaitingForReceiver) {
+              setTimeout(() => acquireWakeLock(), 200);
+            }
+          });
+        }
+      } catch (err) {
+        console.warn('Wake Lock:', err);
+      }
+      // iOS fallback: play a 1-sample silent audio loop to prevent suspension
+      keepScreenWithAudio();
+    }
+
+    // Tiny silent AudioContext loop: most reliable way to prevent iOS backgrounding
+    let _keepAudioSrc = null;
+    function keepScreenWithAudio() {
+      try {
+        if (_keepAudioSrc) return; // already running
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const buf = audioCtx.createBuffer(1, 1, 22050);
+        const src = audioCtx.createBufferSource();
+        src.buffer = buf;
+        src.loop = true;
+        src.connect(audioCtx.destination);
+        src.start(0);
+        _keepAudioSrc = src;
+      } catch(_) {}
+    }
+
+    function stopKeepScreenAudio() {
+      try { if (_keepAudioSrc) { _keepAudioSrc.stop(); _keepAudioSrc.disconnect(); } } catch(_) {}
+      _keepAudioSrc = null;
+    }
+
+    function releaseWakeLock() {
+      if (screenWakeLock) {
+        screenWakeLock.release().catch(() => {});
+        screenWakeLock = null;
+      }
+      stopKeepScreenAudio();
+    }
+
+    /* Heartbeat: sends a tiny ping every 5s to keep WebRTC alive during iOS backgrounding */
+    function startHeartbeat() {
+      stopHeartbeat();
+      heartbeatInterval = setInterval(() => {
+        try {
+          if (conn && conn.open) conn.send(JSON.stringify({ k: 'hb' }));
+        } catch(_) {}
+      }, 5000);
+    }
+
+    function stopHeartbeat() {
+      if (heartbeatInterval) { clearInterval(heartbeatInterval); heartbeatInterval = null; }
+    }
+
+    /* Re-acquire wake lock + restart heartbeat whenever tab becomes visible again */
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        if (islandState === 'stream' || senderWaitingForReceiver) {
+          acquireWakeLock();
+          startHeartbeat();
+        }
+      }
+    });
+
+    /* ═══════════════════════════════════════════════════════════════════
+       WEB AUDIO SYNTHESIZER
+       ═══════════════════════════════════════════════════════════════════ */
+    let audioCtx = null;
+    function playChime(kind) {
+      if (isMuted) return;
+      try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+
+        const now = audioCtx.currentTime;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        if (kind === 'connect') {
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(659.25, now);
+          osc.frequency.exponentialRampToValueAtTime(880.00, now + 0.12);
+          gain.gain.setValueAtTime(0.08, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+          osc.start(now);
+          osc.stop(now + 0.35);
+        } else if (kind === 'success') {
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(587.33, now);
+          osc.frequency.setValueAtTime(880.00, now + 0.08);
+          osc.frequency.setValueAtTime(1174.66, now + 0.18);
+          gain.gain.setValueAtTime(0.12, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+          osc.start(now);
+          osc.stop(now + 0.45);
+        }
+      } catch(_) {}
+    }
+
+    function toggleAudio() {
+      isMuted = !isMuted;
+      document.getElementById('btn-sound').textContent = isMuted ? '🔇' : '🔊';
+      showToast(isMuted ? 'Muted' : 'Sound on');
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════
+       DYNAMIC ISLAND MORPHING CONTROLLER
+       ═══════════════════════════════════════════════════════════════════ */
+    function setIslandState(state, force = false) {
+      if (!force && islandState === state) return;
+      islandState = state;
+      const island = document.getElementById('dynamic-island');
+
+      island.classList.remove('squish-pop');
+      void island.offsetWidth;
+      island.classList.add('squish-pop');
+
+      island.className = 'dynamic-island squish-pop';
+      if (state === 'compact') island.classList.add('state-compact');
+      else if (state === 'idle') island.classList.add('state-idle-drop');
+      else if (state === 'qr') island.classList.add('state-qr');
+      else if (state === 'stream') {
+        island.classList.add('state-transfer');
+        // Always boot the canvas loop when entering stream view
+        AuraOrbit.init();
+      } else if (state === 'complete') {
+        island.classList.add('state-complete');
+        AuraOrbit.stop(); // Stop RAF when leaving stream
+      } else {
+        AuraOrbit.stop();
+      }
+
+      document.querySelectorAll('.island-view').forEach(v => v.classList.remove('active'));
+      const viewMap = {
+        compact: 'view-compact',
+        idle: 'view-idle',
+        qr: 'view-qr',
+        stream: 'view-stream',
+        complete: 'view-complete'
+      };
+      const targetView = document.getElementById(viewMap[state]);
+      if (targetView) targetView.classList.add('active');
+    }
+
+    let isReceiverMode = false;
+
+    function resetToSendAnother(event) {
+      if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      pendingItem = null;
+      hasStartedSending = false;
+      receivedBlob = null;
+      if (currentBlobUrl) {
+        try { URL.revokeObjectURL(currentBlobUrl); } catch(_) {}
+        currentBlobUrl = null;
+      }
+      setIslandState('idle');
+      showToast('Ready for another file or note');
+    }
+
+    function resetToIdle(event) {
+      if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      if (isReceiverMode) {
+        setIslandState('idle');
+      } else {
+        resetToSendAnother(event);
+      }
+    }
+
+    function expandIsland() {
+      if (islandState === 'compact') setIslandState('idle');
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════
+       INITIALIZATION & ZERO-FRICTION ROUTING
+       ═══════════════════════════════════════════════════════════════════ */
+    window.addEventListener('DOMContentLoaded', () => {
+      setupWindowDrop();
+      setupPaste();
+
+      const params = new URLSearchParams(window.location.search);
+      const targetPeerId = params.get('r');
+
+      if (targetPeerId) {
+        isReceiverMode = true;
+        connectDirectlyToSender(targetPeerId);
+      } else {
+        // Pre-warm peer connection so QR generates instantly upon file selection
+        initMyPeer().catch(() => {});
+      }
+    });
+
+    /* ═══════════════════════════════════════════════════════════════════
+       SENDING TEXT / CLIPBOARD
+       ═══════════════════════════════════════════════════════════════════ */
+    function sendQuickText() {
+      const input = document.getElementById('quick-text-input');
+      const text = input.value.trim();
+      if (!text) {
+        showToast('Type or paste something first!');
+        return;
+      }
+
+      pendingItem = {
+        type: 'clip',
+        text: text,
+        name: 'Quick Note',
+        size: new Blob([text]).size
+      };
+      input.value = '';
+      startSharing();
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════
+       GLOBAL DRAG & PASTE
+       ═══════════════════════════════════════════════════════════════════ */
+    function setupWindowDrop() {
+      const scrim = document.getElementById('window-scrim');
+      let counter = 0;
+
+      window.addEventListener('dragenter', e => { e.preventDefault(); counter++; scrim.classList.add('active'); });
+      window.addEventListener('dragleave', e => { e.preventDefault(); counter--; if (counter <= 0) { counter = 0; scrim.classList.remove('active'); } });
+      window.addEventListener('dragover', e => e.preventDefault());
+      window.addEventListener('drop', e => {
+        e.preventDefault(); counter = 0; scrim.classList.remove('active');
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+          onFilesChosen(e.dataTransfer.files);
+        }
+      });
+    }
+
+    function setupPaste() {
+      window.addEventListener('paste', e => {
+        if (!e.clipboardData) return;
+
+        for (const item of e.clipboardData.items) {
+          if (item.kind === 'file') {
+            const blob = item.getAsFile();
+            if (blob) {
+              onFilesChosen([blob]);
+              showToast('Image ready to send!');
+              return;
+            }
+          }
+        }
+
+        const text = e.clipboardData.getData('text');
+        if (text && text.trim()) {
+          pendingItem = {
+            type: 'clip',
+            text: text,
+            name: 'Quick Note',
+            size: new Blob([text]).size
+          };
+          showToast('Note ready to send!');
+          startSharing();
+        }
+      });
+    }
+
+    function onFilesChosen(files) {
+      if (!files || files.length === 0) return;
+      const file = files[0];
+      pendingItem = {
+        type: 'file',
+        file: file,
+        name: file.name || 'file',
+        size: file.size,
+        mime: file.type || 'application/octet-stream'
+      };
+
+      startSharing();
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════
+       SENDER FLOW
+       ═══════════════════════════════════════════════════════════════════ */
+    let peerInitPromise = null;
+
+    async function startSharing() {
+      if (conn && conn.open && pendingItem) {
+        hasStartedSending = true;
+        if (pendingItem.type === 'clip') {
+          playChime('connect');
+          setIslandState('stream');
+          conn.send(JSON.stringify({ k: 'clip', text: pendingItem.text }));
+          setTimeout(() => {
+            if (pendingItem && pendingItem.type === 'clip') {
+              onSenderItemComplete(pendingItem);
+            }
+          }, 600);
+        } else {
+          playChime('connect');
+          setIslandState('stream');
+          const totalChunks = Math.max(1, Math.ceil(pendingItem.size / CHUNK));
+          conn.send(JSON.stringify({
+            k: 'meta',
+            name: pendingItem.name,
+            size: pendingItem.size,
+            type: pendingItem.mime || (pendingItem.file && pendingItem.file.type) || 'application/octet-stream',
+            chunks: totalChunks
+          }));
+        }
+        return;
+      }
+
+      setIslandState('qr');
+
+      // Visual placeholder on canvas while ID resolves
+      const canvas = document.getElementById('qr-canvas');
+      if (canvas && (!peer || !myId)) {
+        canvas.width = 240;
+        canvas.height = 240;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, 240, 240);
+        ctx.fillStyle = '#06160d';
+        ctx.font = '500 13px -apple-system, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Generating QR...', 120, 120);
+      }
+
+      try {
+        await initMyPeer();
+        const shareUrl = buildShareUrl(myId);
+        document.getElementById('qr-hint-text').textContent = shareUrl;
+        await drawTreeQR(shareUrl);
+      } catch (err) {
+        console.error('startSharing error:', err);
+        showToast('Connection issue: ' + (err.message || 'signaling timeout'));
+      }
+    }
+
+    function initMyPeer() {
+      if (peer && !peer.destroyed && myId) return Promise.resolve(peer);
+      if (peerInitPromise) return peerInitPromise;
+
+      peerInitPromise = new Promise((resolve, reject) => {
+        try {
+          if (peer && !peer.destroyed) {
+            try { peer.destroy(); } catch(_) {}
+          }
+
+          peer = new Peer(undefined, {
+            debug: 0,
+            config: {
+              iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' },
+                { urls: 'stun:stun2.l.google.com:19302' },
+                { urls: 'stun:global.stun.twilio.com:3478' }
+              ]
+            }
+          });
+
+          const timeout = setTimeout(() => {
+            peerInitPromise = null;
+            reject(new Error('Signaling timeout'));
+          }, 8000);
+
+          peer.on('open', id => {
+            clearTimeout(timeout);
+            myId = id;
+            peerInitPromise = null;
+            resolve(peer);
+          });
+
+          peer.on('connection', c => {
+            setupConnection(c);
+          });
+
+          peer.on('error', err => {
+            clearTimeout(timeout);
+            peerInitPromise = null;
+            console.warn('PeerJS error:', err);
+            reject(err);
+          });
+        } catch(e) {
+          peerInitPromise = null;
+          reject(e);
+        }
+      });
+
+      return peerInitPromise;
+    }
+
+    let hasStartedSending = false;
+
+    async function sendChunkPacket(chunkIdx, file) {
+      if (!conn || !conn.open) return;
+      const start = chunkIdx * CHUNK;
+      const end = Math.min(start + CHUNK, file.size);
+      if (start >= file.size) return;
+      const slice = file.slice(start, end);
+      const arrayBuf = await slice.arrayBuffer();
+      const packet = new Uint8Array(4 + arrayBuf.byteLength);
+      new DataView(packet.buffer).setUint32(0, chunkIdx);
+      packet.set(new Uint8Array(arrayBuf), 4);
+      try {
+        conn.send(packet.buffer);
+      } catch (e) {
+        console.warn('Re-send error chunk', chunkIdx, e);
+      }
+    }
+
+    function setupConnection(c) {
+      conn = c;
+      c.serialization = 'raw';
+      hasStartedSending = false;
+
+      const onOpen = () => {
+        if (c.dataChannel) {
+          try { c.dataChannel.binaryType = 'arraybuffer'; } catch(e) {}
+        }
+      };
+
+      if (c.open) {
+        onOpen();
+      } else {
+        c.on('open', onOpen);
+      }
+
+      c.on('data', async data => {
+        if (typeof data === 'string') {
+          try {
+            const msg = JSON.parse(data);
+            if (msg.k === 'hb') return;
+            if (msg.k === 'ready') {
+              if (hasStartedSending) return;
+              if (pendingItem) {
+                if (pendingItem.type === 'clip') {
+                  hasStartedSending = true;
+                  playChime('connect');
+                  setIslandState('stream');
+                  conn.send(JSON.stringify({ k: 'clip', text: pendingItem.text }));
+                  setTimeout(() => {
+                    if (senderWaitingForReceiver && pendingItem && pendingItem.type === 'clip') {
+                      onSenderItemComplete(pendingItem);
+                    }
+                  }, 600);
+                } else {
+                  playChime('connect');
+                  setIslandState('stream');
+                  const totalChunks = Math.max(1, Math.ceil(pendingItem.size / CHUNK));
+                  conn.send(JSON.stringify({
+                    k: 'meta',
+                    name: pendingItem.name,
+                    size: pendingItem.size,
+                    type: pendingItem.mime || (pendingItem.file && pendingItem.file.type) || 'application/octet-stream',
+                    chunks: totalChunks
+                  }));
+                }
+              }
+              return;
+            }
+            if (msg.k === 'ack_meta') {
+              if (pendingItem && pendingItem.file && !hasStartedSending) {
+                hasStartedSending = true;
+                streamTurboItem(pendingItem);
+              }
+              return;
+            }
+            if (msg.k === 'req_chunks' && msg.missing && pendingItem && pendingItem.file) {
+              for (const idx of msg.missing) {
+                await sendChunkPacket(idx, pendingItem.file);
+              }
+              const totalChunks = Math.max(1, Math.ceil(pendingItem.size / CHUNK));
+              conn.send(JSON.stringify({ k: 'eof', chunks: totalChunks }));
+              return;
+            }
+            if (msg.k === 'ack_progress') {
+              lastReceiverPct = msg.pct;
+              AuraOrbit.setProgress(msg.pct);
+              document.getElementById('transfer-pct').textContent = msg.pct + '%';
+              if (msg.bps > 0) {
+                document.getElementById('transfer-speed').textContent = (msg.bps / (1024 * 1024)).toFixed(1) + ' MB/s';
+              }
+              if (msg.pct >= 100) {
+                document.getElementById('transfer-eta').textContent = 'All done!';
+                document.getElementById('transfer-speed').textContent = '✓';
+                document.getElementById('activity-icon').textContent = '✓';
+                setTimeout(() => {
+                  if (pendingItem) onSenderItemComplete(pendingItem);
+                }, 200);
+              } else if (msg.eta > 0) {
+                const s = msg.eta;
+                document.getElementById('transfer-eta').textContent = s < 60 ? `${s}s left` : `${Math.ceil(s/60)}m left`;
+              } else {
+                document.getElementById('transfer-eta').textContent = 'Sending...';
+              }
+              if (msg.pct < 100 && pendingItem) document.getElementById('transfer-name').textContent = pendingItem.name;
+            } else if (msg.k === 'ack_complete') {
+              senderWaitingForReceiver = false;
+              stopHeartbeat();
+              if (pendingItem) onSenderItemComplete(pendingItem);
+            }
+          } catch(e) {}
+        }
+      });
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════
+       100% BULLETPROOF NETWORK URL GENERATOR
+       Even if opened via file:// or localhost, encodes real Wi-Fi HTTP URL!
+       ═══════════════════════════════════════════════════════════════════ */
+    function buildShareUrl(peerId) {
+      const port = location.port ? `:${location.port}` : '';
+      const path = location.pathname.endsWith('/') ? location.pathname : location.pathname + '/';
+      const host = location.hostname || 'localhost';
+      const proto = location.protocol.startsWith('http') ? location.protocol : 'http:';
+      return `${proto}//${host}${port}${path}?r=${encodeURIComponent(peerId)}`;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════
+       100% SCAN-RELIABLE TREE QR RENDERER
+       Uses Version 5 (37x37 modules) + Level 'H' (30% fault tolerance)
+       Standard 1:1:3:1:1 optical finder patterns + quiet zone + solid contrast
+       ═══════════════════════════════════════════════════════════════════ */
+    async function drawTreeQR(text) {
+      // Force Version 5 (37x37) with Level H (30% error correction).
+      // If the URL is longer, auto-step to Version 6 or 7.
+      let qr;
+      for (let v = 5; v <= 8; v++) {
+        try {
+          qr = qrcode(v, 'H');
+          qr.addData(text);
+          qr.make();
+          break;
+        } catch (e) {
+          if (v === 8) {
+            qr = qrcode(0, 'M');
+            qr.addData(text);
+            qr.make();
+          }
+        }
+      }
+
+      const count = qr.getModuleCount();
+      const canvasSize = 240;
+      const quiet = 4;
+      const total = count + quiet * 2;
+      const modSize = Math.floor(canvasSize / total);
+      const actualSize = modSize * total;
+      const pad = Math.floor((canvasSize - actualSize) / 2) + quiet * modSize;
+
+      const canvas = document.getElementById('qr-canvas');
+      canvas.width = canvasSize;
+      canvas.height = canvasSize;
+      const ctx = canvas.getContext('2d');
+
+      // 1. Pure Optic White Background
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvasSize, canvasSize);
+
+      const darkTone = '#06160d'; // Deepest forest green/black for 100% optical contrast
+
+      // 2. Exact Optical Standard Finder Patterns (1:1:3:1:1 Ratio)
+      function drawStandardFinder(r0, c0) {
+        const x = pad + c0 * modSize;
+        const y = pad + r0 * modSize;
+        const s = 7 * modSize;
+
+        // Clear 7x7
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(x, y, s, s);
+
+        // 7x7 outer square
+        ctx.fillStyle = darkTone;
+        ctx.fillRect(x, y, s, s);
+
+        // 5x5 white ring
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(x + modSize, y + modSize, 5 * modSize, 5 * modSize);
+
+        // 3x3 dark core
+        ctx.fillStyle = darkTone;
+        ctx.fillRect(x + 2 * modSize, y + 2 * modSize, 3 * modSize, 3 * modSize);
+      }
+
+      drawStandardFinder(0, 0);
+      drawStandardFinder(0, count - 7);
+      drawStandardFinder(count - 7, 0);
+
+      function isProtected(r, c) {
+        if (r < 8 && c < 8) return true;
+        if (r < 8 && c >= count - 8) return true;
+        if (r >= count - 8 && c < 8) return true;
+        return false;
+      }
+
+      // 3. Delicate Center Seal (Takes <2% of grid in Version 5)
+      const center = count / 2;
+      const emblemRadius = 2.4;
+
+      // 4. Draw Data Modules with Organic Leaf Curvature
+      ctx.fillStyle = darkTone;
+      for (let r = 0; r < count; r++) {
+        for (let c = 0; c < count; c++) {
+          if (isProtected(r, c)) continue;
+          if (Math.hypot(r - center, c - center) < emblemRadius) continue;
+
+          if (qr.isDark(r, c)) {
+            const x = pad + c * modSize;
+            const y = pad + r * modSize;
+            // Rounded leaf pebble (fills 92% of cell for solid thresholding)
+            drawPebble(ctx, x + 0.2, y + 0.2, modSize - 0.4, modSize - 0.4, modSize * 0.35);
+            ctx.fill();
+          }
+        }
+      }
+
+      // Center Leaf Emblem
+      const cx = pad + center * modSize;
+      const cy = pad + center * modSize;
+      const radPx = emblemRadius * modSize - 1;
+
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(cx, cy, radPx, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.font = `${Math.floor(radPx * 1.2)}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('🌿', cx, cy + 1);
+    }
+
+    function drawPebble(ctx, x, y, w, h, r) {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + w - r, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+      ctx.lineTo(x + w, y + h - r);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+      ctx.lineTo(x + r, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.closePath();
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════
+       TURBO STREAMING ENGINE
+       ═══════════════════════════════════════════════════════════════════ */
+    async function streamTurboItem(item) {
+      acquireWakeLock();
+      startHeartbeat();
+      setIslandState('stream');
+      transferStartTime = Date.now();
+      senderWaitingForReceiver = true;
+
+      AuraOrbit.init();
+      AuraOrbit.setProgress(0);
+
+      if (item.type === 'clip') {
+        document.getElementById('transfer-name').textContent = 'Quick Note';
+        document.getElementById('activity-icon').textContent = '📋';
+        document.getElementById('transfer-pct').textContent = '';
+        document.getElementById('transfer-speed').textContent = '';
+        document.getElementById('transfer-eta').textContent = 'Sending...';
+        AuraOrbit.setProgress(10);
+
+        try {
+          conn.send(JSON.stringify({ k: 'clip', text: item.text }));
+        } catch(e) {
+          console.warn('Failed to send clip:', e);
+        }
+        setTimeout(() => {
+          if (senderWaitingForReceiver) {
+            onSenderItemComplete(item);
+          }
+        }, 500);
+        return;
+      }
+
+      document.getElementById('transfer-name').textContent = item.name;
+      document.getElementById('activity-icon').textContent = getFileIcon(item.name, item.mime);
+      document.getElementById('transfer-pct').textContent = '0%';
+      document.getElementById('transfer-speed').textContent = '';
+      document.getElementById('transfer-eta').textContent = 'Sending...';
+      AuraOrbit.setProgress(0);
+
+      const file = item.file;
+      if (!file) return;
+      const totalBytes = file.size;
+      const totalChunks = Math.max(1, Math.ceil(totalBytes / CHUNK));
+      const dc = conn.dataChannel;
+      if (dc) {
+        try { dc.binaryType = 'arraybuffer'; } catch(e) {}
+        try { dc.bufferedAmountLowThreshold = BUFFER_LOW; } catch(e) {}
+      }
+
+      let offset = 0;
+      let chunkIdx = 0;
+
+      async function streamChunks() {
+        while (offset < totalBytes) {
+          if (!conn || !conn.open) {
+            console.warn('Data connection closed while streaming');
+            break;
+          }
+
+          if (dc && dc.bufferedAmount > BUFFER_HIGH) {
+            await new Promise(resolve => {
+              let timer;
+              const unblock = () => {
+                clearTimeout(timer);
+                if (dc) dc.onbufferedamountlow = null;
+                resolve();
+              };
+              if (dc) dc.onbufferedamountlow = unblock;
+              timer = setTimeout(unblock, 60);
+            });
+          }
+
+          const end = Math.min(offset + CHUNK, totalBytes);
+          const slice = file.slice(offset, end);
+          const arrayBuf = await slice.arrayBuffer();
+
+          const packet = new Uint8Array(4 + arrayBuf.byteLength);
+          new DataView(packet.buffer).setUint32(0, chunkIdx);
+          packet.set(new Uint8Array(arrayBuf), 4);
+
+          try {
+            conn.send(packet.buffer);
+          } catch (err) {
+            console.warn('Send err on chunk', chunkIdx, err);
+            await new Promise(r => setTimeout(r, 20));
+          }
+
+          offset = end;
+          chunkIdx++;
+
+          if (chunkIdx % 16 === 0) {
+            await new Promise(r => setTimeout(r, 0));
+          }
+        }
+      }
+
+      streamChunks().then(async () => {
+        // Drain buffered data before transmitting EOF packet
+        if (dc && dc.bufferedAmount > 0) {
+          let waitDrain = 0;
+          while (dc && dc.bufferedAmount > 0 && waitDrain < 100) {
+            await new Promise(r => setTimeout(r, 20));
+            waitDrain++;
+          }
+        }
+        if (conn && conn.open) {
+          try {
+            conn.send(JSON.stringify({ k: 'eof', chunks: totalChunks }));
+          } catch(e) {}
+        }
+        setTimeout(() => {
+          if (senderWaitingForReceiver && pendingItem) {
+            onSenderItemComplete(pendingItem);
+          }
+        }, 5000);
+      }).catch(err => {
+        console.error('Streaming failure:', err);
+        showToast('Transfer interrupted: ' + err.message);
+      });
+    }
+
+    /* Receiver-side UI update: shows receiving progress + speed + ETA */
+    function updateActivityUI(pct, bytesDone, totalBytes, bytesPerSec) {
+      AuraOrbit.setProgress(pct);
+      document.getElementById('transfer-pct').textContent = pct + '%';
+      if (bytesPerSec > 512) {
+        document.getElementById('transfer-speed').textContent = (bytesPerSec / (1024 * 1024)).toFixed(1) + ' MB/s';
+      }
+      const etaEl = document.getElementById('transfer-eta');
+      if (pct >= 100) {
+        etaEl.textContent = 'All done!';
+        document.getElementById('transfer-speed').textContent = '✓';
+        document.getElementById('activity-icon').textContent = '✓';
+      } else if (bytesPerSec > 1024 && totalBytes > 0 && bytesDone < totalBytes) {
+        const remaining = totalBytes - bytesDone;
+        const sec = Math.max(1, Math.round(remaining / bytesPerSec));
+        etaEl.textContent = sec < 60 ? `${sec}s left` : `${Math.ceil(sec / 60)}m left`;
+      } else {
+        etaEl.textContent = 'Receiving...';
+      }
+    }
+
+    function onSenderItemComplete(item) {
+      releaseWakeLock();
+      stopHeartbeat();
+      senderWaitingForReceiver = false;
+      AuraOrbit.stop();
+      playChime('success');
+
+      const fileCard = document.getElementById('complete-file-card');
+      const clipCard = document.getElementById('complete-clip-card');
+
+      if (item && item.type === 'clip') {
+        fileCard.style.display = 'none';
+        clipCard.style.display = 'flex';
+        document.getElementById('complete-headline').textContent = 'Sent!';
+        document.getElementById('complete-badge').textContent = '✓';
+        document.getElementById('complete-text-preview').textContent = item.text;
+        document.getElementById('complete-meta-tag').textContent = `📋 Note sent`;
+        const btn = document.getElementById('btn-primary-action');
+        btn.textContent = '✓ Sent';
+        btn.onclick = () => showToast('Sent to device');
+      } else if (item) {
+        clipCard.style.display = 'none';
+        fileCard.style.display = 'flex';
+
+        const thumbImg = document.getElementById('file-hero-img');
+        const emojiSpan = document.getElementById('file-hero-emoji');
+        const ext = (item.name || '').split('.').pop().toLowerCase();
+        const isImg = /^(jpe?g|png|webp|gif|svg|bmp|heic|avif|ico)$/i.test(ext) ||
+                      (item.mime && item.mime.startsWith('image/'));
+
+        if (!currentBlobUrl && item.file) {
+          try { currentBlobUrl = URL.createObjectURL(item.file); } catch(_) {}
+        }
+
+        if (isImg && thumbImg && currentBlobUrl) {
+          thumbImg.src = currentBlobUrl;
+          thumbImg.style.display = 'block';
+          emojiSpan.style.display = 'none';
+        } else {
+          thumbImg.style.display = 'none';
+          emojiSpan.style.display = 'block';
+          emojiSpan.textContent = getFileIcon(item.name, item.mime || item.type);
+        }
+
+        document.getElementById('file-hero-filename').textContent = item.name;
+        document.getElementById('file-hero-size').textContent = formatBytes(item.size);
+        document.getElementById('file-hero-status').textContent = 'Sent!';
+
+        // Configure SENDER buttons: Hide Save File, show Send Another File
+        const dlBtn = document.getElementById('btn-hero-download');
+        const anotherBtn = document.getElementById('btn-sender-another');
+        if (dlBtn) dlBtn.style.display = 'none';
+        if (anotherBtn) anotherBtn.style.display = 'inline-flex';
+        document.getElementById('file-download-subhint').textContent = 'Sent to device';
+      }
+
+      setIslandState('complete');
+      showToast('All done! Sent.');
+    }
+
+    function copyShareLink() {
+      if (!myId) return;
+      const url = buildShareUrl(myId);
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(() => {
+          const btn = document.getElementById('btn-copy');
+          btn.textContent = '✓ Copied!';
+          showToast('Link copied!');
+          setTimeout(() => btn.textContent = 'Copy link', 2000);
+        }).catch(() => prompt('Copy link:', url));
+      } else {
+        prompt('Copy link:', url);
+      }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════
+       RECEIVER FLOW: RAW BINARY INGESTION
+       ═══════════════════════════════════════════════════════════════════ */
+    async function connectDirectlyToSender(targetPeerId) {
+      acquireWakeLock();
+      setIslandState('stream'); // boots AuraOrbit.init() internally
+      AuraOrbit.setProgress(5); // small initial pulse so the orbit is visible immediately
+      document.getElementById('transfer-name').textContent = 'Connecting...';
+      document.getElementById('activity-icon').textContent = '⚡';
+      document.getElementById('transfer-eta').textContent = 'Pairing...';
+      document.getElementById('transfer-pct').textContent = '';
+      document.getElementById('transfer-speed').textContent = '';
+      AuraOrbit.setProgress(5);
+
+      try {
+        await initMyPeer();
+        const c = peer.connect(targetPeerId, { reliable: true, serialization: 'raw' });
+        setupReceiverConnection(c);
+      } catch (err) {
+        releaseWakeLock();
+        showToast('Connection issue: ' + err.message);
+      }
+    }
+
+    let lastRecvUiUpdate = 0;
+
+    let receiverReadyInterval = null;
+
+    function setupReceiverConnection(c) {
+      conn = c;
+      c.serialization = 'raw';
+      incomingChunks = null;
+      incomingFileMeta = null;
+      incomingReceivedCount = 0;
+      incomingTotalBytes = 0;
+      fileReceiveCompleted = false;
+
+      if (receiverReadyInterval) clearInterval(receiverReadyInterval);
+
+      const onOpen = () => {
+        if (c.dataChannel) {
+          try { c.dataChannel.binaryType = 'arraybuffer'; } catch(e) {}
+        }
+        playChime('connect');
+        startHeartbeat();
+        AuraOrbit.init();
+        AuraOrbit.setProgress(0);
+        document.getElementById('transfer-name').textContent = 'Connected';
+        document.getElementById('activity-icon').textContent = '🌱';
+        document.getElementById('transfer-pct').textContent = '0%';
+        document.getElementById('transfer-speed').textContent = '';
+        document.getElementById('transfer-eta').textContent = 'Waiting for file...';
+        showToast('Connected! Getting your file...');
+
+        // Ping ready every 400ms until meta or clip is acknowledged
+        const pingReady = () => {
+          if (incomingFileMeta || fileReceiveCompleted || lastReceivedType === 'clip' || !c || !c.open) {
+            if (receiverReadyInterval) { clearInterval(receiverReadyInterval); receiverReadyInterval = null; }
+            return;
+          }
+          try { c.send(JSON.stringify({ k: 'ready' })); } catch(_) {}
+        };
+        pingReady();
+        receiverReadyInterval = setInterval(pingReady, 400);
+      };
+
+      if (c.open) {
+        onOpen();
+      } else {
+        c.on('open', onOpen);
+      }
+
+      c.on('data', async data => {
+        if (typeof data === 'string') {
+          try {
+            const msg = JSON.parse(data);
+            if (msg.k === 'hb') return;
+            if (msg.k === 'clip') {
+              if (receiverReadyInterval) { clearInterval(receiverReadyInterval); receiverReadyInterval = null; }
+              if (conn && conn.open) {
+                try { conn.send(JSON.stringify({ k: 'ack_complete' })); } catch(e) {}
+              }
+              onClipboardTextReceived(msg.text);
+            } else if (msg.k === 'meta') {
+              if (receiverReadyInterval) { clearInterval(receiverReadyInterval); receiverReadyInterval = null; }
+              startReceivingFile(msg);
+              if (conn && conn.open) {
+                try { conn.send(JSON.stringify({ k: 'ack_meta' })); } catch(e) {}
+              }
+            } else if (msg.k === 'eof') {
+              if (!incomingFileMeta) return;
+              const expectedChunks = msg.chunks || incomingFileMeta.chunks;
+              
+              // Check for missing chunks
+              const missing = [];
+              for (let i = 0; i < expectedChunks; i++) {
+                if (!incomingChunks || incomingChunks[i] === undefined) {
+                  missing.push(i);
+                }
+              }
+
+              if (missing.length > 0 && conn && conn.open) {
+                try {
+                  conn.send(JSON.stringify({ k: 'req_chunks', missing: missing.slice(0, 50) }));
+                } catch(e) {}
+                return;
+              }
+
+              // All chunks verified!
+              if (conn && conn.open) {
+                try {
+                  conn.send(JSON.stringify({ k: 'ack_progress', pct: 100, bps: 0, eta: 0 }));
+                  conn.send(JSON.stringify({ k: 'ack_complete' }));
+                } catch(e) {}
+              }
+              onFileReceivedComplete();
+            }
+          } catch(e) {}
+        } else {
+          await ingestRawChunk(data);
+        }
+      });
+
+      c.on('close', () => {
+        if (receiverReadyInterval) { clearInterval(receiverReadyInterval); receiverReadyInterval = null; }
+        stopHeartbeat();
+        releaseWakeLock();
+        if (islandState === 'stream') showToast('Connection closed');
+      });
+
+      c.on('error', err => {
+        if (receiverReadyInterval) { clearInterval(receiverReadyInterval); receiverReadyInterval = null; }
+        stopHeartbeat();
+        releaseWakeLock();
+        showToast('Connection issue: ' + err.message);
+      });
+    }
+
+    function startReceivingFile(meta) {
+      fileReceiveCompleted = false;
+      incomingFileMeta = meta;
+      incomingChunks = new Array(meta.chunks);
+      incomingReceivedCount = 0;
+      incomingTotalBytes = 0;
+      transferStartTime = Date.now();
+      lastRecvUiUpdate = Date.now();
+
+      // Bind file info immediately to the UI
+      document.getElementById('transfer-name').textContent = meta.name;
+      document.getElementById('activity-icon').textContent = getFileIcon(meta.name, meta.type);
+      document.getElementById('file-hero-filename').textContent = meta.name;
+      document.getElementById('file-hero-size').textContent = formatBytes(meta.size);
+      updateActivityUI(0, 0, meta.size, 0);
+    }
+
+    async function ingestRawChunk(data) {
+      if (!incomingFileMeta || !incomingChunks) return;
+
+      let arrayBuf;
+      if (data instanceof ArrayBuffer) {
+        arrayBuf = data;
+      } else if (data instanceof Blob) {
+        arrayBuf = await data.arrayBuffer();
+      } else if (data && data.buffer instanceof ArrayBuffer) {
+        arrayBuf = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+      } else {
+        return;
+      }
+
+      if (arrayBuf.byteLength < 4) return;
+
+      const view = new DataView(arrayBuf);
+      const chunkIdx = view.getUint32(0);
+      const payload = arrayBuf.slice(4);
+
+      if (chunkIdx < incomingChunks.length && incomingChunks[chunkIdx] === undefined) {
+        incomingChunks[chunkIdx] = payload;
+        incomingReceivedCount++;
+        incomingTotalBytes += payload.byteLength;
+      }
+
+      const now = Date.now();
+      const done = incomingReceivedCount >= incomingFileMeta.chunks;
+
+      if (now - lastRecvUiUpdate > 60 || done) {
+        lastRecvUiUpdate = now;
+        const elapsedSec = (now - transferStartTime) / 1000;
+        const speed = elapsedSec > 0 ? incomingTotalBytes / elapsedSec : 0;
+        const pct = done ? 100 : Math.min(99, Math.round((incomingReceivedCount / incomingFileMeta.chunks) * 100));
+        updateActivityUI(pct, incomingTotalBytes, incomingFileMeta.size, speed);
+
+        const etaSec = (speed > 512 && !done) ? Math.max(1, Math.round((incomingFileMeta.size - incomingTotalBytes) / speed)) : 0;
+        if (conn && conn.open) {
+          try {
+            conn.send(JSON.stringify({ k: 'ack_progress', pct, bps: Math.round(speed), eta: etaSec }));
+          } catch(e) {}
+        }
+      }
+
+      if (done && !fileReceiveCompleted) {
+        if (conn && conn.open) {
+          try {
+            conn.send(JSON.stringify({ k: 'ack_progress', pct: 100, bps: 0, eta: 0 }));
+            conn.send(JSON.stringify({ k: 'ack_complete' }));
+          } catch(e) {}
+        }
+        onFileReceivedComplete();
+      }
+    }
+
+    function getFileIcon(filename, mimeType) {
+      const ext = (filename || '').split('.').pop().toLowerCase();
+      if (/^(jpe?g|png|webp|gif|svg|bmp|heic|avif|ico)$/i.test(ext) || (mimeType && mimeType.startsWith('image/'))) return '🖼️';
+      if (/^(mp4|mov|avi|mkv|webm|wmv|m4v)$/i.test(ext) || (mimeType && mimeType.startsWith('video/'))) return '🎬';
+      if (/^(mp3|wav|flac|aac|m4a|ogg|opus)$/i.test(ext) || (mimeType && mimeType.startsWith('audio/'))) return '🎵';
+      if (/^(pdf)$/i.test(ext)) return '📄';
+      if (/^(zip|tar|gz|rar|7z|bz2|dmg|iso)$/i.test(ext)) return '📦';
+      if (/^(js|ts|html|css|py|json|md|csv|java|c|cpp|rs|go|sh)$/i.test(ext)) return '💻';
+      if (/^(docx?|xlsx?|pptx?|txt|rtf)$/i.test(ext)) return '📝';
+      return '📁';
+    }
+
+    function onClipboardTextReceived(text) {
+      if (receiverReadyInterval) { clearInterval(receiverReadyInterval); receiverReadyInterval = null; }
+      stopHeartbeat();
+      releaseWakeLock();
+      AuraOrbit.stop();
+      lastReceivedType = 'clip';
+      lastReceivedText = text;
+      fileReceiveCompleted = true;
+
+      playChime('success');
+
+      const fileCard = document.getElementById('complete-file-card');
+      const clipCard = document.getElementById('complete-clip-card');
+      fileCard.style.display = 'none';
+      clipCard.style.display = 'flex';
+
+      document.getElementById('complete-headline').textContent = 'Note dropped';
+      document.getElementById('complete-badge').textContent = '✓';
+      document.getElementById('complete-text-preview').textContent = text;
+      document.getElementById('complete-meta-tag').textContent = `📋 ${text.length} characters`;
+
+      const autoPill = document.getElementById('auto-copied-pill');
+      const primaryBtn = document.getElementById('btn-primary-action');
+      const linkBtn = document.getElementById('btn-open-link');
+
+      const isUrl = /^https?:\/\//i.test(text.trim());
+      if (isUrl) {
+        linkBtn.style.display = 'inline-flex';
+        linkBtn.href = text.trim();
+      } else {
+        linkBtn.style.display = 'none';
+      }
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => {
+          autoPill.style.display = 'inline-flex';
+          autoPill.innerHTML = '<span>✓</span> Copied!';
+          primaryBtn.textContent = '✓ Copied!';
+          primaryBtn.classList.add('copied');
+          showToast('Copied!');
+        }).catch(() => {
+          autoPill.style.display = 'none';
+          primaryBtn.textContent = 'Copy text';
+          primaryBtn.classList.remove('copied');
+          showToast('Tap below to copy');
+        });
+      } else {
+        autoPill.style.display = 'none';
+        primaryBtn.textContent = 'Copy text';
+        primaryBtn.classList.remove('copied');
+        showToast('Tap below to copy');
+      }
+
+      setIslandState('complete');
+    }
+
+
+    function onIslandStreamClick() {
+      if (incomingChunks && incomingChunks.length > 0 && !currentBlobUrl) {
+        onFileReceivedComplete();
+      } else if (currentBlobUrl || receivedBlob) {
+        setIslandState('complete');
+      } else if (pendingItem && !isReceiverMode) {
+        onSenderItemComplete(pendingItem);
+      } else if (incomingFileMeta) {
+        const pct = document.getElementById('transfer-pct').textContent || 'in progress';
+        showToast(`Receiving ${incomingFileMeta.name}... (${pct})`);
+      } else {
+        showToast('Waiting for transfer to start...');
+      }
+    }
+
+    function onFileReceivedComplete() {
+      if (fileReceiveCompleted) return;
+      if (!incomingFileMeta || !incomingChunks || incomingChunks.length === 0) return;
+
+      const validChunks = [];
+      for (let i = 0; i < incomingChunks.length; i++) {
+        if (incomingChunks[i] !== undefined && incomingChunks[i] !== null) {
+          validChunks.push(incomingChunks[i]);
+        }
+      }
+      if (validChunks.length === 0) {
+        console.warn('Cannot complete: 0 valid chunks');
+        return;
+      }
+
+      try {
+        stopHeartbeat();
+        releaseWakeLock();
+        try { AuraOrbit.stop(); } catch(_) {}
+        lastReceivedType = 'file';
+
+        const mimeType = incomingFileMeta.type || 'application/octet-stream';
+        try {
+          receivedBlob = new Blob(validChunks, { type: mimeType });
+        } catch(blobErr) {
+          console.warn('Blob fallback:', blobErr);
+          receivedBlob = new Blob(validChunks);
+        }
+
+        receivedFileName = incomingFileMeta.name || 'download';
+
+        if (currentBlobUrl) {
+          try { URL.revokeObjectURL(currentBlobUrl); } catch(e) {}
+          currentBlobUrl = null;
+        }
+        if (receivedBlob && receivedBlob.size > 0) {
+          try { currentBlobUrl = URL.createObjectURL(receivedBlob); } catch(e) {}
+        }
+
+        // Configure Completion Card
+        const fileCard = document.getElementById('complete-file-card');
+        const clipCard = document.getElementById('complete-clip-card');
+        if (clipCard) clipCard.style.display = 'none';
+        if (fileCard) fileCard.style.display = 'flex';
+
+        const filename = receivedFileName;
+        const totalSize = (receivedBlob && receivedBlob.size > 0) ? receivedBlob.size : incomingFileMeta.size;
+        const sizeStr = formatBytes(totalSize);
+        const nameEl = document.getElementById('file-hero-filename');
+        if (nameEl) nameEl.textContent = filename;
+        const sizeEl = document.getElementById('file-hero-size');
+        if (sizeEl) sizeEl.textContent = sizeStr;
+        const statusEl = document.getElementById('file-hero-status');
+        if (statusEl) statusEl.textContent = 'Ready to save';
+
+        // Configure RECEIVER buttons: Show Save File, hide Send Another
+        const dlBtn = document.getElementById('btn-hero-download');
+        const anotherBtn = document.getElementById('btn-sender-another');
+        if (anotherBtn) anotherBtn.style.display = 'none';
+        if (dlBtn) {
+          dlBtn.style.display = 'inline-flex';
+          const labelEl = document.getElementById('btn-download-label');
+          if (labelEl) labelEl.textContent = `Save File (${sizeStr})`;
+          const hintEl = document.getElementById('file-download-subhint');
+          if (hintEl) hintEl.textContent = 'Tap to save to your device';
+        }
+
+        setIslandState('complete');
+        fileReceiveCompleted = true;
+        showToast(`Dropped ${filename}! Ready to save.`);
+
+        // Non-critical decorative items
+        try { playChime('success'); } catch(_) {}
+
+        try {
+          const thumbImg = document.getElementById('file-hero-img');
+          const emojiSpan = document.getElementById('file-hero-emoji');
+          const ext = filename.split('.').pop().toLowerCase();
+          const isImg = /^(jpe?g|png|webp|gif|svg|bmp|heic|avif|ico)$/i.test(ext) ||
+                        (mimeType && mimeType.startsWith('image/'));
+
+          if (isImg && thumbImg && currentBlobUrl) {
+            thumbImg.src = currentBlobUrl;
+            thumbImg.style.display = 'block';
+            if (emojiSpan) emojiSpan.style.display = 'none';
+          } else if (emojiSpan) {
+            if (thumbImg) thumbImg.style.display = 'none';
+            emojiSpan.style.display = 'block';
+            emojiSpan.textContent = getFileIcon(filename, mimeType);
+          }
+        } catch(_) {}
+
+      } catch (err) {
+        fileReceiveCompleted = false;
+        console.error('onFileReceivedComplete error:', err);
+        showToast('Glitch: ' + (err.message || 'unknown error') + '. Tap to retry');
+      }
+    }
+
+    async function triggerFileDownload(event) {
+      if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+
+      if (!currentBlobUrl && receivedBlob) {
+        try { currentBlobUrl = URL.createObjectURL(receivedBlob); } catch(e) {}
+      }
+      if (!currentBlobUrl && pendingItem && pendingItem.file) {
+        try { currentBlobUrl = URL.createObjectURL(pendingItem.file); } catch(e) {}
+        receivedFileName = pendingItem.name || 'download';
+      }
+
+      const filename = receivedFileName || (incomingFileMeta && incomingFileMeta.name) || (pendingItem && pendingItem.name) || 'download';
+      const blobToSave = receivedBlob || (pendingItem && pendingItem.file);
+
+      if (blobToSave) {
+        playChime('success');
+        showToast(`Saving ${filename}...`);
+        const labelEl = document.getElementById('btn-download-label');
+        if (labelEl) labelEl.textContent = '✓ Saved!';
+        const hintEl = document.getElementById('file-download-subhint');
+        if (hintEl) hintEl.textContent = 'Saved to your device';
+
+        await saveBlobToDevice(blobToSave, filename);
+      } else if (currentBlobUrl) {
+        playChime('success');
+        showToast(`Saving ${filename}...`);
+        const labelEl = document.getElementById('btn-download-label');
+        if (labelEl) labelEl.textContent = '✓ Saved!';
+        const hintEl = document.getElementById('file-download-subhint');
+        if (hintEl) hintEl.textContent = 'Saved to your device';
+
+        downloadBlobUrlSafely(currentBlobUrl, filename);
+      } else {
+        showToast('File is still on its way. Hold on!');
+      }
+    }
+
+    async function saveBlobToDevice(blob, filename) {
+      // 1. Web Share API Level 2 (iOS Safari 15+, modern Android)
+      try {
+        if (navigator.canShare && typeof File === 'function') {
+          const mimeType = blob.type || 'application/octet-stream';
+          const file = new File([blob], filename, { type: mimeType });
+          if (navigator.canShare({ files: [file] })) {
+            await navigator.share({
+              files: [file],
+              title: filename
+            });
+            return;
+          }
+        }
+      } catch (err) {
+        if (err && err.name === 'AbortError') return; // user cancelled share sheet
+        console.warn('Share API fallback:', err);
+      }
+
+      // 2. Safe Anchor Download (NO target="_blank")
+      let url = currentBlobUrl;
+      let needRevoke = false;
+      if (!url) {
+        try { url = URL.createObjectURL(blob); needRevoke = true; } catch(_) {}
+      }
+      if (url) {
+        downloadBlobUrlSafely(url, filename);
+        if (needRevoke) {
+          setTimeout(() => { try { URL.revokeObjectURL(url); } catch(_) {} }, 2000);
+        }
+      }
+    }
+
+    function downloadBlobUrlSafely(url, filename) {
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename || 'download';
+      // Absolutely DO NOT set a.target = '_blank'! That breaks iOS Safari blob downloads!
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        try { document.body.removeChild(a); } catch(_) {}
+      }, 500);
+    }
+
+    function onPrimaryActionClick() {
+      if (lastReceivedType === 'clip') {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(lastReceivedText).then(() => {
+            const btn = document.getElementById('btn-primary-action');
+            btn.textContent = '✓ Copied!';
+            btn.classList.add('copied');
+            const autoPill = document.getElementById('auto-copied-pill');
+            autoPill.style.display = 'inline-flex';
+            autoPill.innerHTML = '<span>✓</span> Copied!';
+            showToast('Copied!');
+          }).catch(() => {
+            prompt('Copy text:', lastReceivedText);
+          });
+        } else {
+          prompt('Copy text:', lastReceivedText);
+        }
+      } else {
+        triggerFileDownload();
+      }
+    }
+
+    function formatBytes(b) {
+      if (!b) return '0 B';
+      const k = 1024;
+      const s = ['B', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(b) / Math.log(k));
+      return (b / Math.pow(k, i)).toFixed(1) + ' ' + s[i];
+    }
+
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.querySelector('span').textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 2600);
+    }
+  </script>
+</body>
+</html>
