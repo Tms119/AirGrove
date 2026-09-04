@@ -1238,7 +1238,7 @@
             <div class="drop-sub">or click to browse · paste with ⌘V</div>
             <div class="tag-row">
               <div class="local-wifi-tag"><span>📶</span> Same Wi-Fi · Direct P2P</div>
-              <div class="browser-hint-tag"><span>✨</span> Safari &amp; Chrome vibe best (Brave shields block P2P)</div>
+              <div class="browser-hint-tag">Works best in Safari or Chrome</div>
             </div>
           </div>
 
@@ -1260,7 +1260,7 @@
           <div class="qr-island-title">
             <span>📷</span> Scan with your phone camera
           </div>
-          <div class="qr-island-hint" id="qr-hint-text">Scan with camera · Same Wi-Fi · Safari &amp; Chrome vibe best ✨</div>
+          <div class="qr-island-hint" id="qr-hint-text">Scan with camera · Same Wi-Fi · Works best in Safari or Chrome</div>
           <div class="island-btn-row">
             <button class="island-btn" id="btn-copy" onclick="copyShareLink()">Copy link</button>
             <button class="island-btn btn-ghost" onclick="setIslandState('idle')">✕</button>
@@ -1380,7 +1380,7 @@
             </div>
             <div class="error-checklist-item">
               <span class="error-checklist-num">3</span>
-              <div><strong>Browser Vibe Check:</strong> Use Safari or Chrome. Brave Shields block direct local peer connections.</div>
+              <div><strong>Browser:</strong> Use Safari or Chrome. Other browsers like Brave can block the connection.</div>
             </div>
           </div>
 
@@ -1809,7 +1809,7 @@
       if (reason === 'different_network' || reason === 'firewall') {
         if (titleEl) titleEl.textContent = customTitle || 'Pairing Failed';
         if (badgeEl) badgeEl.textContent = 'Different Network or Firewall';
-        if (descEl) descEl.textContent = customDesc || 'Direct peer-to-peer connection was blocked. Both devices must be on the same Wi-Fi. Pro-tip: Safari & Chrome vibe best (Brave shields block P2P).';
+        if (descEl) descEl.textContent = customDesc || 'Direct connection was blocked. Both devices must be on the same Wi-Fi. Use Safari or Chrome for best results.';
         if (actionBtn) actionBtn.textContent = '🔄 Retry on Same Wi-Fi';
         showToast('Pairing failed: Devices on different networks or blocked by firewall');
       } else {
@@ -2857,7 +2857,7 @@
                   showPairingError(
                     'different_network',
                     'Pairing Failed',
-                    'Connection stuck connecting P2P. Devices appear to be on different networks or blocked by a firewall. Switch off cellular data, join same Wi-Fi, and use Safari or Chrome.'
+                    'Connection timed out. Both devices must be on the same Wi-Fi. Use Safari or Chrome for best results.'
                   );
                 }
               }, 15000);
@@ -2871,7 +2871,7 @@
               showPairingError(
                 'firewall',
                 'Firewall Blocked P2P',
-                'Direct peer connection blocked. Both devices must be on the same Wi-Fi router, and use Safari or Chrome (Brave shields block local P2P).'
+                'Direct connection blocked. Both devices must be on the same Wi-Fi router. Use Safari or Chrome for best results.'
               );
             }
           };
